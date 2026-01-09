@@ -1,0 +1,14 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.5
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 =     "res://addons/spacemouse2/lib/libgodot-spacemouse.so"
+linux.release.x86_64 =   "res://addons/spacemouse2/lib/libgodot-spacemouse.so"
+windows.debug.x86_64 =   "res://addons/spacemouse2/lib/godot_spacemouse.dll"
+windows.release.x86_64 = "res://addons/spacemouse2/lib/godot_spacemouse.dll"
+macos.debug =            "res://addons/spacemouse2/lib/libgodot-spacemouse.dylib"
+macos.release =          "res://addons/spacemouse2/lib/libgodot-spacemouse.dylib"
+macos.debug.arm64 =      "res://addons/spacemouse2/lib/libgodot-spacemouse.dylib"
+macos.release.arm64 =    "res://addons/spacemouse2/lib/libgodot-spacemouse.dylib"

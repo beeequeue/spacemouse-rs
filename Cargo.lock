@@ -100,7 +100,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "godot-magicmouse"
+name = "godot-spacemouse"
 version = "0.1.0"
 dependencies = [
  "godot",
