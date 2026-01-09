@@ -1,14 +1,23 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use godot::{classes::{EditorPlugin, IEditorPlugin}, prelude::*};
+
+struct SpaceMouse;
+
+#[gdextension]
+unsafe impl ExtensionLibrary for SpaceMouse {}
+
+#[derive(GodotClass)]
+#[class(tool, init, base=EditorPlugin)]
+struct SpaceMousePlugin {
+    base: Base<EditorPlugin>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[godot_api]
+impl IEditorPlugin for SpaceMousePlugin {
+    fn enter_tree(&mut self) {
+        // Perform typical plugin operations here.
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn exit_tree(&mut self) {
+        // Perform typical plugin operations here.
     }
 }

@@ -1,0 +1,57 @@
+version: 3
+
+tasks:
+  lint:
+    desc: Lint code
+    cmds:
+      - cargo clippy --all-targets {{.CLI_ARGS}}
+      - cargo fmt --check --all
+  lint:fix:
+    desc: Lint code and fix problems with autofixes
+    cmds:
+      - cargo clippy --fix --allow-staged --allow-dirty
+      - task: format
+
+  format:
+    desc: Format code
+    cmds:
+      - cargo fmt --all {{.CLI_ARGS}}
+
+  test:
+    desc: Run tests
+    sources:
+      - Cargo.*
+      - src/**
+      - test-data/**
+      - tests/**
+    cmds:
+      - cargo test {{.CLI_ARGS}}
+
+  link:
+    desc: "Link the library to a Godot project: task link -- path-to-godot-project"
+    cmd: nu scripts/link.nu {{.CLI_ARGS}}
+
+  run:
+    desc: "Run the CLI with a debug build: task run -- <...args>"
+    cmds:
+      - cargo run {{.CLI_ARGS}}
+
+  build:
+    desc: Build debug artifacts
+    sources:
+      - Cargo.*
+      - src/**
+    generates:
+      - target/debug/**
+    cmds:
+      - cargo build {{.CLI_ARGS}}
+
+  build:release:
+    desc: Build release artifacts
+    sources:
+      - Cargo.*
+      - src/**
+    generates:
+      - target/release/**
+    cmds:
+      - cargo build --release --locked {{.CLI_ARGS}}
