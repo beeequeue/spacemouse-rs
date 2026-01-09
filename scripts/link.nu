@@ -6,7 +6,10 @@ export def main [
 
   let base_path: path = ($target_dir | path join addons spacemouse2)
   let files = {
-    "spacemouse.gdextension": "spacemouse.gdextension"
+    #"godot/plugin.cfg": "plugin.cfg"
+    "godot/settings.tscn": "settings.tscn"
+    #"godot/spacemouse.gd": "spacemouse.gd"
+    "godot/spacemouse.gdextension": "spacemouse.gdextension"
     "target/:MODE:/godot_spacemouse.dll": "lib/godot_spacemouse.dll"
     "target/:MODE:/libgodot_spacemouse.dylib": "lib/libgodot_spacemouse.dylib"
     "target/:MODE:/libgodot_spacemouse.so": "lib/libgodot_spacemouse.so"
@@ -34,7 +37,7 @@ export def main [
     if $os == Windows {
       if ($real_to | path exists -n) { rm $real_to }
       #cp $real_from $real_to
-      mklink /H $real_to $real_from
+      mklink $real_to $real_from
     }
   }
 }

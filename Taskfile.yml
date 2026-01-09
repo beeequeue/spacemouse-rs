@@ -39,8 +39,10 @@ tasks:
   build:
     desc: Build debug artifacts
     sources:
-      - Cargo.*
+      - .cargo/config.toml
       - src/**
+      - Cargo.*
+      - rust-toolchain.*
     generates:
       - target/debug/**
     cmds:
