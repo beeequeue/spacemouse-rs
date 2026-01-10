@@ -35,7 +35,7 @@ export def main [
     mkdir ($real_to | path dirname)
 
     if $os == Windows {
-      if ($real_to | path exists -n) { rm $real_to }
+      if ($real_to | path exists -n) { rm -t $real_to }
       #cp $real_from $real_to
       mklink $real_to $real_from
     }

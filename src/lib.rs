@@ -1,6 +1,6 @@
 use godot::{
     classes::{Control, EditorPlugin, IEditorPlugin, editor_plugin::DockSlot},
-    global::print_rich,
+    global::print,
     prelude::*,
 };
 use hidapi::{HidApi, HidDevice};
@@ -93,6 +93,8 @@ struct SpaceMousePlugin {
     hidapi: Option<HidApi>,
     spacemouse: Option<SpaceMouseDevice>,
     hid_device: Option<HidDevice>,
+
+    control: Option<Gd<Control>>,
 }
 
 #[godot_api]
@@ -100,7 +102,6 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn ready(&mut self) {
         let hidapi = HidApi::new().unwrap();
 
-        print_rich(&[Variant::from("init!")]);
         if let Some(spacemouse) = SpaceMouse::find_spacemouse(&hidapi) {
             let device = hidapi.open(spacemouse.vid, spacemouse.pid).unwrap();
             device.set_blocking_mode(false).unwrap();
@@ -126,7 +127,7 @@ impl IEditorPlugin for SpaceMousePlugin {
             let (translation, rotation) =
                 SpaceMouse::read_data(self.spacemouse.unwrap().format, buffer);
             if (translation + rotation).length() != 0.0 {
-                print_rich(&[Variant::from(format!(
+                print(&[Variant::from(format!(
                     "{:#?}, {:#?}",
                     translation, rotation
                 ))]);
@@ -135,29 +136,25 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn enter_tree(&mut self) {
+        print(&[Variant::from("enter_tree")]);
+
         let settings_scene = load::<PackedScene>("res://addons/spacemouse2/settings.tscn");
-        let settings_control = settings_scene
+        let control = settings_scene
             .instantiate()
             .unwrap()
             .try_cast::<Control>()
             .unwrap();
 
         self.to_gd()
-            .add_control_to_dock(DockSlot::LEFT_UR, &settings_control);
+            .add_control_to_dock(DockSlot::LEFT_UR, &control);
+        self.control = Some(control);
     }
 
     fn exit_tree(&mut self) {
-        // Perform typical plugin operations here.
-    }
-}
+        print(&[Variant::from("exit_tree")]);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = SpaceMouse::find_spacemouse();
-        assert!(result.is_some());
+        if let Some(control) = self.control.as_ref() {
+            self.to_gd().remove_control_from_docks(control);
+        }
     }
 }
