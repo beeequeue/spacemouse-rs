@@ -20,10 +20,10 @@ tasks:
   test:
     desc: Run tests
     sources:
-      - Cargo.*
+      - .cargo/config.toml
       - src/**
-      - test-data/**
-      - tests/**
+      - Cargo.*
+      - rust-toolchain.*
     cmds:
       - cargo test {{.CLI_ARGS}}
 
