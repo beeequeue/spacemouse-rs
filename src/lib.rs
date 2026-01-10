@@ -179,7 +179,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn enter_tree(&mut self) {
-        print(&[Variant::from("enter_tree")]);
+        print(&["enter_tree".to_variant()]);
 
         let settings_scene = load::<PackedScene>("res://addons/spacemouse2/settings.tscn");
         let control = settings_scene
@@ -198,7 +198,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn exit_tree(&mut self) {
-        print(&[Variant::from("exit_tree")]);
+        print(&["exit_tree".to_variant()]);
 
         if let Some(control) = self.control.as_ref() {
             self.to_gd().remove_control_from_docks(control);
