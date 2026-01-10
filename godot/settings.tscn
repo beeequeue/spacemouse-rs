@@ -1,38 +1,73 @@
-[gd_scene format=3 uid="uid://ii46k78wm4hc"]
+[gd_scene format=3 uid="uid://c811jegiwwf23"]
 
 [node name="Spacemouse" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_right = -876.0
-offset_bottom = 29.0
+offset_right = -980.0
+offset_bottom = -220.0
 grow_horizontal = 2
 grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
-[node name="Control" type="Control" parent="."]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_bottom = 103.0
-grow_horizontal = 2
-
-[node name="HSlider" type="HSlider" parent="Control"]
+[node name="RotaionSpeedContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -125.0
-offset_top = 22.08
-offset_right = 125.0
-offset_bottom = 38.08001
+offset_left = -87.5
+offset_right = 87.5
+offset_bottom = 43.0
 grow_horizontal = 2
 
-[node name="Label" type="Label" parent="Control"]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_bottom = 23.0
-grow_horizontal = 2
+[node name="Label" type="Label" parent="RotaionSpeedContainer"]
+layout_mode = 2
 text = "Rotation speed"
 horizontal_alignment = 1
+
+[node name="RotationSpeedSlider" type="HSlider" parent="RotaionSpeedContainer"]
+layout_mode = 2
+
+[node name="Bottom" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="DebugInfo" type="VBoxContainer" parent="Bottom"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -45.0
+offset_bottom = 5.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 2
+
+[node name="TypeLabel" type="Label" parent="Bottom/DebugInfo"]
+layout_mode = 2
+size_flags_vertical = 8
+text = "Test Test Test"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TransformLabel" type="Label" parent="Bottom/DebugInfo"]
+layout_mode = 2
+size_flags_vertical = 8
+text = "Test Test Test"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RotationLabel" type="Label" parent="Bottom/DebugInfo"]
+layout_mode = 2
+size_flags_vertical = 8
+text = "Test Test Test"
+horizontal_alignment = 1
+vertical_alignment = 1

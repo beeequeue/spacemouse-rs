@@ -11,6 +11,15 @@ enum Format {
     Current,
 }
 
+impl ToString for Format {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Original => "Original".to_string(),
+            Self::Current => "Current".to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct SpaceMouseDevice {
     vid: u16,
@@ -48,38 +57,58 @@ impl SpaceMouse {
 
         None
     }
+}
 
-    pub fn read_data(format: Format, buf: &[u8]) -> (Vector3, Vector3) {
-        let mut translation = Vector3::ZERO;
-        let mut rotation = Vector3::ZERO;
+fn read_data(spacemouse: SpaceMouseDevice, hid: &HidDevice) -> (Vector3, Vector3) {
+    match spacemouse.format {
+        Format::Original => {
+            let mut translation = Vector3::ZERO;
+            let mut rotation = Vector3::ZERO;
 
-        let first = *buf.first().unwrap();
-        match format {
-            Format::Original => {
+            for _ in 0..1 {
+                let buffer: &mut [u8; 7] = &mut [0; 7];
+                let result = hid.read(buffer);
+                if result.is_err() {
+                    return (translation, rotation);
+                }
+
+                let first = *buffer.first().unwrap();
                 if first == 1 {
-                    translation.x = *buf.get(1).unwrap() as f32;
-                    translation.y = *buf.get(5).unwrap() as f32;
-                    translation.x = *buf.get(3).unwrap() as f32;
+                    translation.x = *buffer.get(1).unwrap() as f32;
+                    translation.y = *buffer.get(5).unwrap() as f32;
+                    translation.x = *buffer.get(3).unwrap() as f32;
                 } else if first == 2 {
-                    rotation.x = *buf.get(1).unwrap() as f32;
-                    rotation.y = *buf.get(5).unwrap() as f32;
-                    rotation.x = *buf.get(3).unwrap() as f32;
+                    rotation.x = *buffer.get(1).unwrap() as f32;
+                    rotation.y = *buffer.get(5).unwrap() as f32;
+                    rotation.x = *buffer.get(3).unwrap() as f32;
                 }
             }
 
-            Format::Current => {
-                if first == 1 {
-                    translation.x = *buf.get(1).unwrap() as f32;
-                    translation.y = *buf.get(5).unwrap() as f32;
-                    translation.x = *buf.get(3).unwrap() as f32;
-                    rotation.x = *buf.get(7).unwrap() as f32;
-                    rotation.y = *buf.get(11).unwrap() as f32;
-                    rotation.x = *buf.get(9).unwrap() as f32;
-                }
-            }
+            (translation, rotation)
         }
 
-        (translation, rotation)
+        Format::Current => {
+            let buffer: &mut [u8; 12] = &mut [0; 12];
+            let result = hid.read(buffer);
+            if result.is_err() {
+                return (Vector3::ZERO, Vector3::ZERO);
+            }
+
+            let mut translation = Vector3::ZERO;
+            let mut rotation = Vector3::ZERO;
+
+            let first = *buffer.first().unwrap();
+            if first == 1 {
+                translation.x = *buffer.get(1).unwrap() as f32;
+                translation.y = *buffer.get(5).unwrap() as f32;
+                translation.x = *buffer.get(3).unwrap() as f32;
+                rotation.x = *buffer.get(7).unwrap() as f32;
+                rotation.y = *buffer.get(11).unwrap() as f32;
+                rotation.x = *buffer.get(9).unwrap() as f32;
+            }
+
+            (translation, rotation)
+        }
     }
 }
 
@@ -94,15 +123,19 @@ struct SpaceMousePlugin {
     spacemouse: Option<SpaceMouseDevice>,
     hid_device: Option<HidDevice>,
 
+    // ui
     control: Option<Gd<Control>>,
+    type_label: Option<Gd<Label>>,
+    translation_label: Option<Gd<Label>>,
+    rotation_label: Option<Gd<Label>>,
 }
 
 #[godot_api]
 impl IEditorPlugin for SpaceMousePlugin {
     fn ready(&mut self) {
-        let hidapi = HidApi::new().unwrap();
 
-        if let Some(spacemouse) = SpaceMouse::find_spacemouse(&hidapi) {
+        let hidapi = HidApi::new().unwrap();
+        if let Some(spacemouse) = SpaceMouse::find(&hidapi) {
             let device = hidapi.open(spacemouse.vid, spacemouse.pid).unwrap();
             device.set_blocking_mode(false).unwrap();
             self.spacemouse = Some(spacemouse);
@@ -110,6 +143,12 @@ impl IEditorPlugin for SpaceMousePlugin {
         }
 
         self.hidapi = Some(hidapi);
+        if let Some(type_label) = self.type_label.as_mut()
+            && let Some(spacemouse) = self.spacemouse
+        {
+            type_label.set_text(&spacemouse.format.to_string());
+        }
+    }
     }
 
     fn physics_process(&mut self, _delta: f64) {
@@ -118,19 +157,23 @@ impl IEditorPlugin for SpaceMousePlugin {
         }
 
         let device = self.hid_device.as_ref().unwrap();
-        let translation = Vector3::ZERO;
-        let rotation = Vector3::ZERO;
 
-        let buffer: &mut [u8; 12] = &mut [0; 12];
-        let result = device.read(buffer);
-        if result.is_ok() {
-            let (translation, rotation) =
-                SpaceMouse::read_data(self.spacemouse.unwrap().format, buffer);
-            if (translation + rotation).length() != 0.0 {
-                print(&[Variant::from(format!(
-                    "{:#?}, {:#?}",
-                    translation, rotation
-                ))]);
+        let (translation, rotation) = read_data(self.spacemouse.unwrap(), device);
+        if (translation + rotation).length() != 0.0 {
+            self.translation_label
+                .as_mut()
+                .unwrap()
+                .set_text(&translation.to_string());
+
+            self.rotation_label
+                .as_mut()
+                .unwrap()
+                .set_text(&rotation.to_string());
+
+            if let Some(camera) = self.camera.as_mut() {
+                camera.translate(translation);
+            } else {
+                self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d();
             }
         }
     }
@@ -144,6 +187,10 @@ impl IEditorPlugin for SpaceMousePlugin {
             .unwrap()
             .try_cast::<Control>()
             .unwrap();
+
+        self.type_label = Some(control.get_node_as("Bottom/DebugInfo/TypeLabel"));
+        self.translation_label = Some(control.get_node_as("Bottom/DebugInfo/TransformLabel"));
+        self.rotation_label = Some(control.get_node_as("Bottom/DebugInfo/RotationLabel"));
 
         self.to_gd()
             .add_control_to_dock(DockSlot::LEFT_UR, &control);
