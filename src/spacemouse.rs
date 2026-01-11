@@ -1,7 +1,9 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, io::Error, path::PathBuf};
 
+use facet::Facet;
 use godot::prelude::*;
+use godot::global::print;
 use hidapi::{HidApi, HidDevice, HidError};
 use lazy_static::lazy_static;
 
@@ -36,16 +38,59 @@ impl fmt::Display for Format {
     }
 }
 
+#[derive(Facet, Clone, Copy)]
+#[facet(deny_unknown_fields, skip_all_unless_truthy)]
+struct DeviceIds {
+    vendor: u16,
+    product: u16,
+}
+
+impl DeviceIds {
+    fn load_cache(path: &PathBuf) -> Result<DeviceIds, Error> {
+        let contents = fs::read(path)?;
+        let ids: DeviceIds = facet_postcard::from_slice(&contents).unwrap();
+        print(&["loaded cache: ".to_variant(), ids.product.to_variant()]);
+        Ok(ids)
+    }
+
+    fn save_cache(&self, path: &PathBuf) -> Result<(), Error> {
+        let data = facet_postcard::to_vec(self).unwrap();
+        fs::write(path, data)
+    }
+}
+
 pub struct SpaceMouseDevice {
-    pub vid: u16,
-    pub pid: u16,
+    pub info: DeviceIds,
     pub format: Format,
 
     device: HidDevice,
 }
 
 impl SpaceMouseDevice {
+    pub fn find_with_cache(path: PathBuf) -> Result<Self, HidError> {
+        if let Ok(ids) = DeviceIds::load_cache(&path) {
+            HidApi::disable_device_discovery();
+            let hidapi = HidApi::new()?;
+            let device = hidapi.open(ids.vendor, ids.product)?;
+            device.set_blocking_mode(false).unwrap();
+
+            return Ok(Self {
+                format: *DEVICE_FORMATS.get(&(ids.vendor, ids.product)).unwrap(),
+                info: ids,
+                device,
+            });
+        }
+
+        let result = Self::find();
+        if let Ok(result) = result.as_ref() {
+            result.info.save_cache(&path).unwrap();
+        }
+
+        result
+    }
+
     pub fn find() -> Result<Self, HidError> {
+        HidApi::disable_device_discovery();
         let hidapi = HidApi::new()?;
 
         let found = hidapi.device_list().find_map(|device| {
@@ -63,8 +108,10 @@ impl SpaceMouseDevice {
             device.set_blocking_mode(false).unwrap();
 
             Ok(Self {
-                vid,
-                pid,
+                info: DeviceIds {
+                    vendor: vid,
+                    product: pid,
+                },
                 format,
                 device,
             })

@@ -1,5 +1,7 @@
 mod spacemouse;
 
+use std::path::PathBuf;
+
 use crate::spacemouse::*;
 use godot::{
     classes::{
@@ -34,6 +36,12 @@ struct SpaceMousePlugin {
 
 #[godot_api]
 impl SpaceMousePlugin {
+    fn cache_path() -> PathBuf {
+        std::env::current_dir()
+            .unwrap()
+            .join(".godot/spacemouse_cache.bin")
+    }
+
     #[func]
     fn on_focus_entered(&mut self) {
         self.focused = true;
@@ -53,7 +61,7 @@ impl IEditorPlugin for SpaceMousePlugin {
         // self.to_gd().get_viewport().unwrap().print_tree_pretty();
         self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d();
 
-        if let Ok(spacemouse) = SpaceMouseDevice::find() {
+        if let Ok(spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
             self.spacemouse = Some(spacemouse);
         }
 
@@ -62,6 +70,12 @@ impl IEditorPlugin for SpaceMousePlugin {
         {
             type_label.set_text(&spacemouse.format.to_string());
         }
+
+        print(&[std::env::current_dir()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_variant()]);
 
         // window focus
         let mut window = self
