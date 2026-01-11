@@ -49,7 +49,6 @@ impl DeviceIds {
     fn load_cache(path: &PathBuf) -> Result<DeviceIds, Error> {
         let contents = fs::read(path)?;
         let ids: DeviceIds = facet_postcard::from_slice(&contents).unwrap();
-        print(&["loaded cache: ".to_variant(), ids.product.to_variant()]);
         Ok(ids)
     }
 
@@ -67,6 +66,7 @@ pub struct SpaceMouseDevice {
 }
 
 impl SpaceMouseDevice {
+    // no idea if this actually speeds anything up in godot, but worth a try since the device lookup is "documented to take several seconds"
     pub fn find_with_cache(path: PathBuf) -> Result<Self, HidError> {
         if let Ok(ids) = DeviceIds::load_cache(&path) {
             HidApi::disable_device_discovery();

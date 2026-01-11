@@ -71,12 +71,6 @@ impl IEditorPlugin for SpaceMousePlugin {
             type_label.set_text(&spacemouse.format.to_string());
         }
 
-        print(&[std::env::current_dir()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_variant()]);
-
         // window focus
         let mut window = self
             .to_gd()
@@ -109,7 +103,6 @@ impl IEditorPlugin for SpaceMousePlugin {
             })
         {
             self.camera = camera;
-            print(&["Set camera".to_variant()]);
         }
 
         0
