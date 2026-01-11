@@ -19,6 +19,9 @@ struct SpaceMousePlugin {
     base: Base<EditorPlugin>,
     spacemouse: Option<SpaceMouseDevice>,
 
+    // state
+    focused: bool,
+
     // ui
     control: Option<Gd<Control>>,
     type_label: Option<Gd<Label>>,
@@ -30,8 +33,23 @@ struct SpaceMousePlugin {
 }
 
 #[godot_api]
+impl SpaceMousePlugin {
+    #[func]
+    fn on_focus_entered(&mut self) {
+        self.focused = true;
+    }
+
+    #[func]
+    fn on_focus_exited(&mut self) {
+        self.focused = false;
+    }
+}
+
+#[godot_api]
 impl IEditorPlugin for SpaceMousePlugin {
     fn ready(&mut self) {
+        self.focused = true;
+
         // self.to_gd().get_viewport().unwrap().print_tree_pretty();
         self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d();
 
@@ -44,6 +62,21 @@ impl IEditorPlugin for SpaceMousePlugin {
         {
             type_label.set_text(&spacemouse.format.to_string());
         }
+
+        // window focus
+        let mut window = self
+            .to_gd()
+            .get_editor_interface()
+            .unwrap()
+            .get_base_control()
+            .unwrap()
+            .get_window()
+            .unwrap();
+        let callable_enter = self.to_gd().callable("on_focus_entered");
+        let callable_exit = self.to_gd().callable("on_focus_exited");
+
+        window.connect("focus_entered", &callable_enter);
+        window.connect("focus_exited", &callable_exit);
     }
 
     // Required to trigger `forward_3d_gui_input`
@@ -69,7 +102,9 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn physics_process(&mut self, delta: f64) {
-        if let Some(spacemouse) = self.spacemouse.as_ref() {
+        if let Some(spacemouse) = self.spacemouse.as_ref()
+            && self.focused
+        {
             let (translation, rotation) = spacemouse.read_data();
             if (translation + rotation).length() != 0.0 {
                 self.translation_label
