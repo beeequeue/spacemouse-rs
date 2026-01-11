@@ -13,6 +13,7 @@ hidapi = { version = "2.6.4", default-features = false, features = [
   "macos-shared-device",
   "windows-native",
 ] }
+lazy_static = "1.5.0"
 
 # Enable more optimization in the release profile at the cost of compile time.
 [profile.release]
