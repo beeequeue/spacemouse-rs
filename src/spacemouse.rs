@@ -66,6 +66,7 @@ impl DeviceIds {
 }
 
 pub struct SpaceMouseDevice {
+    #[allow(private_interfaces)]
     pub info: DeviceIds,
     pub format: Format,
 
@@ -143,10 +144,12 @@ impl SpaceMouseDevice {
 
             let buffer: &mut [u8; 13] = &mut [0; 13];
             loop {
-                if device.read(buffer).is_ok() {
-                    SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                for _ in 0..4 {
+                    if device.read(buffer).is_ok() {
+                        SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                    }
                 }
-                thread::sleep(Duration::from_millis(16));
+                thread::sleep(Duration::from_millis(7)); // 144hz
             }
         });
     }
@@ -159,18 +162,16 @@ impl SpaceMouseDevice {
     ) {
         match format {
             Format::Original => {
-                for _ in 0..4 {
-                    if buffer[0] == 1 {
-                        let mut translation = translation.lock().unwrap();
-                        translation.x = to_i16(&buffer[1..=2]) as f32;
+                if buffer[0] == 1 {
+                    let mut translation = translation.lock().unwrap();
+                    translation.x = to_i16(&buffer[1..=2]) as f32;
                         translation.y = -to_i16(&buffer[5..=6]) as f32;
                         translation.z = to_i16(&buffer[3..=4]) as f32;
                     } else if buffer[0] == 2 {
                         let mut rotation = rotation.lock().unwrap();
                         rotation.x = to_i16(&buffer[1..=2]) as f32;
                         rotation.y = -to_i16(&buffer[5..=6]) as f32;
-                        rotation.z = to_i16(&buffer[3..=4]) as f32;
-                    }
+                    rotation.z = to_i16(&buffer[3..=4]) as f32;
                 }
             }
 
