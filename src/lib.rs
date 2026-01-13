@@ -1,11 +1,13 @@
+mod settings;
 mod spacemouse;
 
 use std::path::PathBuf;
 
-use crate::spacemouse::*;
+use crate::{settings::InputMode, spacemouse::*};
 use godot::{
     classes::{
-        Camera3D, Control, EditorPlugin, IEditorPlugin, InputEvent, Label, editor_plugin::DockSlot,
+        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, InputEvent, Label,
+        editor_plugin::DockSlot,
     },
     global::print,
     prelude::*,
@@ -23,6 +25,9 @@ struct SpaceMousePlugin {
 
     // state
     focused: bool,
+    input_mode: InputMode,
+    move_speed: f64,
+    rotation_speed: f64,
 
     // ui
     control: Option<Gd<Control>>,
@@ -51,14 +56,79 @@ impl SpaceMousePlugin {
     fn on_focus_exited(&mut self) {
         self.focused = false;
     }
+
+    #[func]
+    fn on_settings_changed(&mut self) {
+        let editor = EditorInterface::singleton();
+        let Some(settings) = editor.get_editor_settings() else {
+            return;
+        };
+
+        let changed_settings = settings.get_changed_settings();
+        if changed_settings.contains(settings::SETTING_INPUT_MODE) {
+            self.input_mode = settings::get_input_mode();
+        }
+        if changed_settings.contains(settings::SETTING_MOVE_SPEED) {
+            self.move_speed = settings::get_move_speed();
+        }
+        if changed_settings.contains(settings::SETTING_ROTATION_SPEED) {
+            self.move_speed = settings::get_rotation_speed();
+        }
+    }
 }
 
 #[godot_api]
 impl IEditorPlugin for SpaceMousePlugin {
+    fn enter_tree(&mut self) {
+        print(&["enter_tree".to_variant()]);
+
+        settings::init();
+        let editor = EditorInterface::singleton();
+        if let Some(mut settings) = editor.get_editor_settings() {
+            settings.connect(
+                "settings_changed",
+                &self.base().callable("on_settings_changed"),
+            );
+            self.input_mode = settings::get_input_mode();
+            self.move_speed = settings::get_move_speed();
+            self.rotation_speed = settings::get_rotation_speed();
+        };
+
+        let settings_scene = load::<PackedScene>("res://addons/spacemouse2/settings.tscn");
+        let control = settings_scene
+            .instantiate()
+            .unwrap()
+            .try_cast::<Control>()
+            .unwrap();
+
+        self.type_label = Some(control.get_node_as("Bottom/DebugInfo/TypeLabel"));
+        self.translation_label = Some(control.get_node_as("Bottom/DebugInfo/TransformLabel"));
+        self.rotation_label = Some(control.get_node_as("Bottom/DebugInfo/RotationLabel"));
+
+        self.to_gd()
+            .add_control_to_dock(DockSlot::LEFT_UR, &control);
+        self.control = Some(control);
+    }
+
+    fn exit_tree(&mut self) {
+        print(&["exit_tree".to_variant()]);
+
+        let editor = EditorInterface::singleton();
+        if let Some(mut settings) = editor.get_editor_settings() {
+            settings.disconnect(
+                "settings_changed",
+                &self.base().callable("on_settings_changed"),
+            );
+        };
+
+        if let Some(control) = self.control.as_ref() {
+            self.to_gd().remove_control_from_docks(control);
+        }
+    }
+
     fn ready(&mut self) {
         self.focused = true;
-
-        self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d();
+        self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d(); // TODO: doesnt work
 
         if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
             spacemouse.start_polling();
@@ -111,6 +181,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn physics_process(&mut self, delta: f64) {
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
+            && let Some(camera) = self.camera.as_mut()
         {
             let translation = spacemouse.translation.lock().unwrap();
             let rotation = spacemouse.rotation.lock().unwrap();
@@ -126,39 +197,10 @@ impl IEditorPlugin for SpaceMousePlugin {
                     .unwrap()
                     .set_text(&rotation.to_string());
 
-                if let Some(camera) = self.camera.as_mut() {
-                    camera.translate(translation.clone() * 0.25 * delta as f32);
-                    let new_rotation = camera.get_rotation() + (rotation.clone() * 0.05 * delta as f32);
-                    camera.set_rotation(new_rotation);
-                }
+                camera.translate(*translation * 0.05 * delta as f32);
+                let new_rotation = camera.get_rotation() + (*rotation * 0.025 * delta as f32);
+                camera.set_rotation(new_rotation);
             }
-        }
-    }
-
-    fn enter_tree(&mut self) {
-        print(&["enter_tree".to_variant()]);
-
-        let settings_scene = load::<PackedScene>("res://addons/spacemouse2/settings.tscn");
-        let control = settings_scene
-            .instantiate()
-            .unwrap()
-            .try_cast::<Control>()
-            .unwrap();
-
-        self.type_label = Some(control.get_node_as("Bottom/DebugInfo/TypeLabel"));
-        self.translation_label = Some(control.get_node_as("Bottom/DebugInfo/TransformLabel"));
-        self.rotation_label = Some(control.get_node_as("Bottom/DebugInfo/RotationLabel"));
-
-        self.to_gd()
-            .add_control_to_dock(DockSlot::LEFT_UR, &control);
-        self.control = Some(control);
-    }
-
-    fn exit_tree(&mut self) {
-        print(&["exit_tree".to_variant()]);
-
-        if let Some(control) = self.control.as_ref() {
-            self.to_gd().remove_control_from_docks(control);
         }
     }
 }
