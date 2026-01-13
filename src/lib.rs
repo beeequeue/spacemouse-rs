@@ -58,10 +58,10 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn ready(&mut self) {
         self.focused = true;
 
-        // self.to_gd().get_viewport().unwrap().print_tree_pretty();
         self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d();
 
-        if let Ok(spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
+        if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
+            spacemouse.start_polling();
             self.spacemouse = Some(spacemouse);
         }
 
@@ -112,8 +112,10 @@ impl IEditorPlugin for SpaceMousePlugin {
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
         {
-            let (translation, rotation) = spacemouse.read_data();
-            if (translation + rotation).length() != 0.0 {
+            let translation = spacemouse.translation.lock().unwrap();
+            let rotation = spacemouse.rotation.lock().unwrap();
+
+            if !translation.is_zero_approx() || !rotation.is_zero_approx() {
                 self.translation_label
                     .as_mut()
                     .unwrap()
@@ -125,8 +127,8 @@ impl IEditorPlugin for SpaceMousePlugin {
                     .set_text(&rotation.to_string());
 
                 if let Some(camera) = self.camera.as_mut() {
-                    camera.translate(translation * 0.25 * delta as f32);
-                    let new_rotation = camera.get_rotation() + (rotation * 0.05 * delta as f32);
+                    camera.translate(translation.clone() * 0.25 * delta as f32);
+                    let new_rotation = camera.get_rotation() + (rotation.clone() * 0.05 * delta as f32);
                     camera.set_rotation(new_rotation);
                 }
             }

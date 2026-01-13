@@ -1,10 +1,17 @@
 use core::fmt;
-use std::{collections::HashMap, fs, io::Error, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Error,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use facet::Facet;
 use godot::prelude::*;
-use godot::global::print;
-use hidapi::{HidApi, HidDevice, HidError};
+use hidapi::{HidApi, HidError};
 use lazy_static::lazy_static;
 
 fn to_i16(slice: &[u8]) -> i16 {
@@ -62,7 +69,8 @@ pub struct SpaceMouseDevice {
     pub info: DeviceIds,
     pub format: Format,
 
-    device: HidDevice,
+    pub translation: Arc<Mutex<Vector3>>,
+    pub rotation: Arc<Mutex<Vector3>>,
 }
 
 impl SpaceMouseDevice {
@@ -77,7 +85,8 @@ impl SpaceMouseDevice {
             return Ok(Self {
                 format: *DEVICE_FORMATS.get(&(ids.vendor, ids.product)).unwrap(),
                 info: ids,
-                device,
+                translation: Arc::new(Mutex::new(Vector3::ZERO)),
+                rotation: Arc::new(Mutex::new(Vector3::ZERO)),
             });
         }
 
@@ -113,60 +122,69 @@ impl SpaceMouseDevice {
                     product: pid,
                 },
                 format,
-                device,
+                translation: Arc::new(Mutex::new(Vector3::ZERO)),
+                rotation: Arc::new(Mutex::new(Vector3::ZERO)),
             })
         })
     }
 
-    pub fn read_data(&self) -> (Vector3, Vector3) {
-        match self.format {
+    pub fn start_polling(&mut self) {
+        let ids = self.info;
+        let format = self.format;
+        let translation = Arc::clone(&self.translation);
+        let rotation = Arc::clone(&self.rotation);
+
+        thread::spawn(move || {
+            HidApi::disable_device_discovery();
+            let hidapi = HidApi::new().unwrap();
+
+            let device = hidapi.open(ids.vendor, ids.product).unwrap();
+            device.set_blocking_mode(false).unwrap();
+
+            let buffer: &mut [u8; 13] = &mut [0; 13];
+            loop {
+                if device.read(buffer).is_ok() {
+                    SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                }
+                thread::sleep(Duration::from_millis(16));
+            }
+        });
+    }
+
+    pub fn parse_data(
+        format: &Format,
+        buffer: &[u8],
+        translation: &Arc<Mutex<Vector3>>,
+        rotation: &Arc<Mutex<Vector3>>,
+    ) {
+        match format {
             Format::Original => {
-                let mut translation = Vector3::ZERO;
-                let mut rotation = Vector3::ZERO;
-
                 for _ in 0..4 {
-                    let buffer: &mut [u8; 7] = &mut [0; 7];
-                    let result = self.device.read(buffer);
-                    if result.is_err() {
-                        return (translation, rotation);
-                    }
-
-                    let first = *buffer.first().unwrap();
-                    if first == 1 {
+                    if buffer[0] == 1 {
+                        let mut translation = translation.lock().unwrap();
                         translation.x = to_i16(&buffer[1..=2]) as f32;
                         translation.y = -to_i16(&buffer[5..=6]) as f32;
                         translation.z = to_i16(&buffer[3..=4]) as f32;
-                    } else if first == 2 {
+                    } else if buffer[0] == 2 {
+                        let mut rotation = rotation.lock().unwrap();
                         rotation.x = to_i16(&buffer[1..=2]) as f32;
                         rotation.y = -to_i16(&buffer[5..=6]) as f32;
                         rotation.z = to_i16(&buffer[3..=4]) as f32;
                     }
                 }
-
-                (translation, rotation)
             }
 
             Format::Current => {
-                let buffer: &mut [u8; 12] = &mut [0; 12];
-                let result = self.device.read(buffer);
-                if result.is_err() {
-                    return (Vector3::ZERO, Vector3::ZERO);
-                }
-
-                let mut translation = Vector3::ZERO;
-                let mut rotation = Vector3::ZERO;
-
-                let first = *buffer.first().unwrap();
-                if first == 1 {
+                if buffer[0] == 1 {
+                    let mut translation = translation.lock().unwrap();
                     translation.x = to_i16(&buffer[1..=2]) as f32;
                     translation.y = -to_i16(&buffer[5..=6]) as f32;
                     translation.z = to_i16(&buffer[3..=4]) as f32;
+                    let mut rotation = rotation.lock().unwrap();
                     rotation.x = to_i16(&buffer[7..=8]) as f32;
                     rotation.y = -to_i16(&buffer[1..=2]) as f32;
                     rotation.z = to_i16(&buffer[9..=10]) as f32;
                 }
-
-                (translation, rotation)
             }
         }
     }
