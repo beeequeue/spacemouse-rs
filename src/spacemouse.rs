@@ -4,7 +4,10 @@ use std::{
     fs,
     io::Error,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, TryRecvError},
+    },
     thread,
     time::Duration,
 };
@@ -129,7 +132,9 @@ impl SpaceMouseDevice {
         })
     }
 
-    pub fn start_polling(&mut self) {
+    pub fn start_polling(&mut self) -> mpsc::Sender<()> {
+        let (tx, rx) = mpsc::channel();
+
         let ids = self.info;
         let format = self.format;
         let translation = Arc::clone(&self.translation);
@@ -144,6 +149,11 @@ impl SpaceMouseDevice {
 
             let buffer: &mut [u8; 13] = &mut [0; 13];
             loop {
+                match rx.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => break,
+                    Err(TryRecvError::Empty) => (),
+                }
+
                 for _ in 0..4 {
                     if device.read(buffer).is_ok() {
                         SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
@@ -152,6 +162,8 @@ impl SpaceMouseDevice {
                 thread::sleep(Duration::from_millis(7)); // 144hz
             }
         });
+
+        tx
     }
 
     pub fn parse_data(
@@ -165,12 +177,12 @@ impl SpaceMouseDevice {
                 if buffer[0] == 1 {
                     let mut translation = translation.lock().unwrap();
                     translation.x = to_i16(&buffer[1..=2]) as f32;
-                        translation.y = -to_i16(&buffer[5..=6]) as f32;
-                        translation.z = to_i16(&buffer[3..=4]) as f32;
-                    } else if buffer[0] == 2 {
-                        let mut rotation = rotation.lock().unwrap();
-                        rotation.x = to_i16(&buffer[1..=2]) as f32;
-                        rotation.y = -to_i16(&buffer[5..=6]) as f32;
+                    translation.y = -to_i16(&buffer[5..=6]) as f32;
+                    translation.z = to_i16(&buffer[3..=4]) as f32;
+                } else if buffer[0] == 2 {
+                    let mut rotation = rotation.lock().unwrap();
+                    rotation.x = to_i16(&buffer[1..=2]) as f32;
+                    rotation.y = -to_i16(&buffer[5..=6]) as f32;
                     rotation.z = to_i16(&buffer[3..=4]) as f32;
                 }
             }

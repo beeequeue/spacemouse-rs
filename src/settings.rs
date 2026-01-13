@@ -2,7 +2,7 @@ use core::fmt;
 
 use godot::{classes::EditorInterface, global::PropertyHint, prelude::*};
 
-const SETTING_HID: &str = "spacemouse/hid";
+// const SETTING_HID: &str = "spacemouse/hid";
 pub const SETTING_INPUT_MODE: &str = "spacemouse/input_mode";
 pub const SETTING_MOVE_SPEED: &str = "spacemouse/move_speed";
 const DEFAULT_MOVE_SPEED: f64 = 10.0;

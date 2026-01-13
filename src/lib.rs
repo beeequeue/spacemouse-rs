@@ -1,7 +1,7 @@
 mod settings;
 mod spacemouse;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::mpsc, thread, time::Duration};
 
 use crate::{settings::InputMode, spacemouse::*};
 use godot::{
@@ -28,6 +28,7 @@ struct SpaceMousePlugin {
     input_mode: InputMode,
     move_speed: f64,
     rotation_speed: f64,
+    end_polling: Option<mpsc::Sender<()>>,
 
     // ui
     control: Option<Gd<Control>>,
@@ -113,6 +114,13 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn exit_tree(&mut self) {
         print(&["exit_tree".to_variant()]);
 
+        if let Some(end_polling) = self.end_polling.as_ref() {
+            end_polling.send(()).expect("could not kill polling thread");
+            // this sleep somehow makes sure godot doesn't crash when reloading
+            // the editor plugin after rebuilding it...
+            thread::sleep(Duration::from_millis(50));
+        }
+
         let editor = EditorInterface::singleton();
         if let Some(mut settings) = editor.get_editor_settings() {
             settings.disconnect(
@@ -131,7 +139,8 @@ impl IEditorPlugin for SpaceMousePlugin {
         self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d(); // TODO: doesnt work
 
         if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
-            spacemouse.start_polling();
+            let channel = spacemouse.start_polling();
+            self.end_polling = Some(channel);
             self.spacemouse = Some(spacemouse);
         }
 
