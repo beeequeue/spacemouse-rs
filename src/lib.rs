@@ -217,8 +217,8 @@ impl IEditorPlugin for SpaceMousePlugin {
                 } else {
                     let middle_of_screen =
                         camera.get_viewport().unwrap().get_visible_rect().center();
-                    let from = camera.project_position(middle_of_screen, 0.0);
-                    let to = from + camera.project_position(middle_of_screen, 15.0);
+                    let from = camera.get_position();
+                    let to = from + camera.project_ray_normal(middle_of_screen) * 10.0;
 
                     if let Some(query) = PhysicsRayQueryParameters3D::create(from, to) {
                         let mut space_state = camera
@@ -231,7 +231,6 @@ impl IEditorPlugin for SpaceMousePlugin {
                             if !result.is_empty() {
                                 let position = result.get("position").unwrap().to::<Vector3>();
                                 self.grab_position = Some(position);
-                                print(&[result.to_variant()]);
                             } else {
                                 self.grab_position = Some(to);
                             }
@@ -247,7 +246,8 @@ impl IEditorPlugin for SpaceMousePlugin {
 
                             let space_trans = camera_transform * *translation * GRAB_MODE_MOVE_FLIP;
                             let space_trans = space_trans * 0.1 * offset_speed * delta as f32;
-                            let space_rot = *rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
+                            let space_rot =
+                                *rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
 
                             camera_transform.origin = space_trans + camera_origin - grab_position;
 
