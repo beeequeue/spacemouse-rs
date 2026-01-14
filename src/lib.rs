@@ -7,7 +7,7 @@ use crate::{settings::InputMode, spacemouse::*};
 use godot::{
     classes::{
         Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, InputEvent, Label,
-        PhysicsRayQueryParameters3D, editor_plugin::DockSlot,
+        MeshInstance3D, PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
     },
     global::print,
     prelude::*,
@@ -24,6 +24,7 @@ unsafe impl ExtensionLibrary for SpaceMouse {}
 #[class(tool, init, base=EditorPlugin)]
 struct SpaceMousePlugin {
     base: Base<EditorPlugin>,
+    grab_gizmo: Option<Gd<MeshInstance3D>>,
 
     // state
     spacemouse: Option<SpaceMouseDevice>,
@@ -78,6 +79,30 @@ impl SpaceMousePlugin {
         }
         if changed_settings.contains(settings::SETTING_ROTATION_SPEED) {
             self.move_speed = settings::get_rotation_speed();
+        }
+    }
+
+    fn redraw_grab_ball(&mut self) {
+        let Some(grab_position) = self.grab_position else {
+            if let Some(mut gizmo) = self.grab_gizmo.take() {
+                gizmo.queue_free();
+            }
+            return;
+        };
+
+        let mut sphere = SphereMesh::new_gd();
+        sphere.set_radius(0.25);
+        sphere.set_height(0.5);
+
+        // Create MeshInstance3D
+        let mut mesh_instance = MeshInstance3D::new_alloc();
+        mesh_instance.set_mesh(&sphere);
+        mesh_instance.set_position(grab_position);
+
+        let editor_interface = EditorInterface::singleton();
+        if let Some(mut scene_root) = editor_interface.get_edited_scene_root() {
+            scene_root.add_child(&mesh_instance);
+            self.grab_gizmo = Some(mesh_instance);
         }
     }
 }
@@ -179,10 +204,10 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn process(&mut self, delta: f64) {
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
-            && let Some(camera) = self.camera.as_mut()
+            && let Some(mut camera) = self.camera.take()
         {
-            let translation = spacemouse.translation.lock().unwrap();
-            let rotation = spacemouse.rotation.lock().unwrap();
+            let translation = *spacemouse.translation.lock().unwrap();
+            let rotation = *spacemouse.rotation.lock().unwrap();
 
             self.translation_label
                 .as_mut()
@@ -196,8 +221,8 @@ impl IEditorPlugin for SpaceMousePlugin {
 
             if !translation.is_zero_approx() || !rotation.is_zero_approx() {
                 if self.input_mode == InputMode::Fly {
-                    camera.translate(*translation * 0.05 * delta as f32);
-                    let new_rotation = camera.get_rotation() + (*rotation * 0.025 * delta as f32);
+                    camera.translate(translation * 0.05 * delta as f32);
+                    let new_rotation = camera.get_rotation() + (rotation * 0.025 * delta as f32);
                     camera.set_rotation(new_rotation);
                 } else {
                     let middle_of_screen =
@@ -212,13 +237,12 @@ impl IEditorPlugin for SpaceMousePlugin {
                             .get_direct_space_state()
                             .unwrap();
                         let result = space_state.intersect_ray(&query);
+
                         if self.grab_position.is_none() {
-                            if !result.is_empty() {
-                                let position = result.get("position").unwrap().to::<Vector3>();
-                                self.grab_position = Some(position);
-                            } else {
-                                self.grab_position = Some(to);
-                            }
+                            let new_grab_pos: Vector3 =
+                                result.get("position").map_or(to, |p| p.to());
+                            self.grab_position = Some(new_grab_pos);
+                            self.redraw_grab_ball();
                         }
 
                         if let Some(grab_position) = self.grab_position {
@@ -229,10 +253,10 @@ impl IEditorPlugin for SpaceMousePlugin {
                                 (grab_position.distance_to(camera_origin) / 8.0) + 0.01;
                             let offset_speed = offset_speed.clamp(0.01, 8.0);
 
-                            let space_trans = camera_transform * *translation * GRAB_MODE_MOVE_FLIP;
+                            let space_trans = camera_transform * translation * GRAB_MODE_MOVE_FLIP;
                             let space_trans = space_trans * 0.1 * offset_speed * delta as f32;
                             let space_rot =
-                                *rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
+                                rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
 
                             camera_transform.origin = space_trans + camera_origin - grab_position;
 
@@ -250,7 +274,10 @@ impl IEditorPlugin for SpaceMousePlugin {
                 }
             } else if self.grab_position.is_some() {
                 self.grab_position = None;
+                self.redraw_grab_ball();
             }
+
+            self.camera = Some(camera);
         }
     }
 }
