@@ -7,11 +7,14 @@ use crate::{settings::InputMode, spacemouse::*};
 use godot::{
     classes::{
         Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, InputEvent, Label,
-        editor_plugin::DockSlot,
+        PhysicsRayQueryParameters3D, editor_plugin::DockSlot,
     },
     global::print,
     prelude::*,
 };
+
+const GRAB_MODE_MOVE_FLIP: Vector3 = Vector3::new(-1.0, -1.0, -1.0);
+const GRAB_MODE_ROTATION_FLIP: Vector3 = Vector3::new(1.0, -1.0, 1.0);
 
 struct SpaceMouse;
 #[gdextension]
@@ -21,13 +24,14 @@ unsafe impl ExtensionLibrary for SpaceMouse {}
 #[class(tool, init, base=EditorPlugin)]
 struct SpaceMousePlugin {
     base: Base<EditorPlugin>,
-    spacemouse: Option<SpaceMouseDevice>,
 
     // state
+    spacemouse: Option<SpaceMouseDevice>,
     focused: bool,
     input_mode: InputMode,
     move_speed: f64,
     rotation_speed: f64,
+    grab_position: Option<Vector3>,
     end_polling: Option<mpsc::Sender<()>>,
 
     // ui
@@ -195,20 +199,72 @@ impl IEditorPlugin for SpaceMousePlugin {
             let translation = spacemouse.translation.lock().unwrap();
             let rotation = spacemouse.rotation.lock().unwrap();
 
+            self.translation_label
+                .as_mut()
+                .unwrap()
+                .set_text(&translation.to_string());
+
+            self.rotation_label
+                .as_mut()
+                .unwrap()
+                .set_text(&rotation.to_string());
+
             if !translation.is_zero_approx() || !rotation.is_zero_approx() {
-                self.translation_label
-                    .as_mut()
-                    .unwrap()
-                    .set_text(&translation.to_string());
+                if self.input_mode == InputMode::Fly {
+                    camera.translate(*translation * 0.05 * delta as f32);
+                    let new_rotation = camera.get_rotation() + (*rotation * 0.025 * delta as f32);
+                    camera.set_rotation(new_rotation);
+                } else {
+                    let middle_of_screen =
+                        camera.get_viewport().unwrap().get_visible_rect().center();
+                    let from = camera.project_position(middle_of_screen, 0.0);
+                    let to = from + camera.project_position(middle_of_screen, 15.0);
 
-                self.rotation_label
-                    .as_mut()
-                    .unwrap()
-                    .set_text(&rotation.to_string());
+                    if let Some(query) = PhysicsRayQueryParameters3D::create(from, to) {
+                        let mut space_state = camera
+                            .get_world_3d()
+                            .unwrap()
+                            .get_direct_space_state()
+                            .unwrap();
+                        let result = space_state.intersect_ray(&query);
+                        if self.grab_position.is_none() {
+                            if !result.is_empty() {
+                                let position = result.get("position").unwrap().to::<Vector3>();
+                                self.grab_position = Some(position);
+                                print(&[result.to_variant()]);
+                            } else {
+                                self.grab_position = Some(to);
+                            }
+                        }
 
-                camera.translate(*translation * 0.05 * delta as f32);
-                let new_rotation = camera.get_rotation() + (*rotation * 0.025 * delta as f32);
-                camera.set_rotation(new_rotation);
+                        if let Some(grab_position) = self.grab_position {
+                            let mut camera_transform = camera.get_transform();
+                            let camera_origin = camera_transform.origin;
+
+                            let offset_speed =
+                                (grab_position.distance_to(camera_origin) / 8.0) + 0.01;
+                            let offset_speed = offset_speed.clamp(0.01, 8.0);
+
+                            let space_trans = camera_transform * *translation * GRAB_MODE_MOVE_FLIP;
+                            let space_trans = space_trans * 0.1 * offset_speed * delta as f32;
+                            let space_rot = *rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
+
+                            camera_transform.origin = space_trans + camera_origin - grab_position;
+
+                            let camera_transform = camera_transform
+                                .rotated(camera_transform.basis.col_a().normalized(), space_rot.x);
+                            let camera_transform = camera_transform
+                                .rotated(camera_transform.basis.col_b().normalized(), space_rot.y);
+                            let mut camera_transform = camera_transform
+                                .rotated(camera_transform.basis.col_c().normalized(), space_rot.z);
+
+                            camera_transform.origin += grab_position;
+                            camera.set_transform(camera_transform);
+                        }
+                    }
+                }
+            } else if self.grab_position.is_some() {
+                self.grab_position = None;
             }
         }
     }
