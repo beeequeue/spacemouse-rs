@@ -140,7 +140,13 @@ impl IEditorPlugin for SpaceMousePlugin {
 
     fn ready(&mut self) {
         self.focused = true;
-        self.camera = self.to_gd().get_viewport().unwrap().get_camera_3d(); // TODO: doesnt work
+        self.camera = self
+            .to_gd()
+            .get_editor_interface()
+            .unwrap()
+            .get_editor_viewport_3d()
+            .unwrap()
+            .get_camera_3d();
 
         if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
             let channel = spacemouse.start_polling();
@@ -168,27 +174,6 @@ impl IEditorPlugin for SpaceMousePlugin {
 
         window.connect("focus_entered", &callable_enter);
         window.connect("focus_exited", &callable_exit);
-    }
-
-    // Required to trigger `forward_3d_gui_input`
-    fn handles(&self, _o: Gd<Object>) -> bool {
-        true
-    }
-
-    fn forward_3d_gui_input(
-        &mut self,
-        camera: Option<Gd<Camera3D>>,
-        _event: Option<Gd<InputEvent>>,
-    ) -> i32 {
-        if camera.is_some()
-            && self.camera.as_ref().is_none_or(|current| {
-                current.get_camera_rid() != camera.as_ref().unwrap().get_camera_rid()
-            })
-        {
-            self.camera = camera;
-        }
-
-        0
     }
 
     fn process(&mut self, delta: f64) {
