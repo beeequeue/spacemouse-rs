@@ -191,7 +191,7 @@ impl IEditorPlugin for SpaceMousePlugin {
         0
     }
 
-    fn physics_process(&mut self, delta: f64) {
+    fn process(&mut self, delta: f64) {
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
             && let Some(camera) = self.camera.as_mut()
