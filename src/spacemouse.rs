@@ -81,11 +81,6 @@ impl SpaceMouseDevice {
     // no idea if this actually speeds anything up in godot, but worth a try since the device lookup is "documented to take several seconds"
     pub fn find_with_cache(path: PathBuf) -> Result<Self, HidError> {
         if let Ok(ids) = DeviceIds::load_cache(&path) {
-            HidApi::disable_device_discovery();
-            let hidapi = HidApi::new()?;
-            let device = hidapi.open(ids.vendor, ids.product)?;
-            device.set_blocking_mode(false).unwrap();
-
             return Ok(Self {
                 format: *DEVICE_FORMATS.get(&(ids.vendor, ids.product)).unwrap(),
                 info: ids,
@@ -117,9 +112,6 @@ impl SpaceMouseDevice {
         });
 
         found.map_or(Err(HidError::HidApiErrorEmpty), |(vid, pid, format)| {
-            let device = hidapi.open(vid, pid)?;
-            device.set_blocking_mode(false).unwrap();
-
             Ok(Self {
                 info: DeviceIds {
                     vendor: vid,
