@@ -1,0 +1,2 @@
+- [ ] make lib return 0.0 - 1.0
+- [ ] replace placeholder ball with gizmo
