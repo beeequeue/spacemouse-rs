@@ -4,8 +4,8 @@ use std::{path::PathBuf, sync::mpsc, thread, time::Duration};
 
 use godot::{
     classes::{
-        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, Label,
-        MeshInstance3D, PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
+        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, Label, MeshInstance3D,
+        PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
     },
     global::print,
     prelude::*,
