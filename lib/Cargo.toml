@@ -1,0 +1,19 @@
+[package]
+name = "spacemouse"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+facet = "0.42.0"
+facet-postcard = "0.42.0"
+godot = { version = "^0.4.5", optional = true }
+hidapi = { version = "2.6.4", default-features = false, features = [
+  "linux-native",
+  "macos-shared-device",
+  "windows-native",
+] }
+lazy_static = "1.5.0"
+
+[features]
+# Defines a feature named `webp` that does not enable any other features.
+godot = ["dep:godot"]

@@ -13,9 +13,13 @@ use std::{
 };
 
 use facet::Facet;
-use godot::prelude::*;
 use hidapi::{HidApi, HidError};
 use lazy_static::lazy_static;
+
+#[cfg(not(feature = "godot"))]
+use crate::vector3::Vector3;
+#[cfg(feature = "godot")]
+use godot::prelude::Vector3;
 
 fn to_i16(slice: &[u8]) -> i16 {
     i16::from_le_bytes(slice.try_into().unwrap())
@@ -104,18 +108,18 @@ impl SpaceMouseDevice {
         let found = hidapi.device_list().find_map(|device| {
             DEVICE_FORMATS.iter().find_map(|(known, format)| {
                 if device.vendor_id() == known.0 && device.product_id() == known.1 {
-                    Some((known.0, known.1, *format))
+                    Some((known, *format))
                 } else {
                     None
                 }
             })
         });
 
-        found.map_or(Err(HidError::HidApiErrorEmpty), |(vid, pid, format)| {
+        found.map_or(Err(HidError::HidApiErrorEmpty), |(device, format)| {
             Ok(Self {
                 info: DeviceIds {
-                    vendor: vid,
-                    product: pid,
+                    vendor: device.0,
+                    product: device.1,
                 },
                 format,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),

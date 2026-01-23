@@ -1,17 +1,18 @@
 mod settings;
-mod spacemouse;
 
 use std::{path::PathBuf, sync::mpsc, thread, time::Duration};
 
-use crate::{settings::InputMode, spacemouse::*};
 use godot::{
     classes::{
-        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, InputEvent, Label,
+        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, Label,
         MeshInstance3D, PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
     },
     global::print,
     prelude::*,
 };
+use spacemouse::SpaceMouseDevice;
+
+use crate::settings::InputMode;
 
 const GRAB_MODE_MOVE_FLIP: Vector3 = Vector3::new(-1.0, -1.0, -1.0);
 const GRAB_MODE_ROTATION_FLIP: Vector3 = Vector3::new(1.0, -1.0, 1.0);
