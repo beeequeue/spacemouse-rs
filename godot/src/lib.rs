@@ -144,7 +144,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn exit_tree(&mut self) {
         godot_print!("exit_tree");
 
-        if let Some(spacemouse) = self.spacemouse.as_ref()
+        if let Some(spacemouse) = self.spacemouse.as_mut()
             && spacemouse.is_polling()
         {
             spacemouse.stop_polling();
@@ -216,8 +216,8 @@ impl IEditorPlugin for SpaceMousePlugin {
             && let Some(mut camera) = self.camera.take()
         {
             // handle polling thread crashing
-            if let spacemouse::ThreadStatus::Crashed(message) = spacemouse.thread_status() && !self.is_crashed {
-                godot_print!("SpaceMouse polling thread crashed:\n{}", message);
+            if !spacemouse.is_polling() && !self.is_crashed {
+                godot_print!("SpaceMouse polling thread crashed:\n{}", "TODO");
                 self.is_crashed = true;
                 return;
             }

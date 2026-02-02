@@ -1,8 +1,8 @@
 use core::fmt;
+use std::error::Error;
 use std::{
     collections::HashMap,
     fs,
-    io::Error,
     path::PathBuf,
     sync::{
         Arc, Mutex,
@@ -60,15 +60,15 @@ struct DeviceIds {
 }
 
 impl DeviceIds {
-    fn load_cache(path: &PathBuf) -> Result<DeviceIds, Error> {
+    fn load_cache(path: &PathBuf) -> Result<DeviceIds, Box<dyn Error + Send + Sync>> {
         let contents = fs::read(path)?;
-        let ids: DeviceIds = facet_postcard::from_slice(&contents).unwrap();
+        let ids: DeviceIds = facet_postcard::from_slice(&contents)?;
         Ok(ids)
     }
 
-    fn save_cache(&self, path: &PathBuf) -> Result<(), Error> {
-        let data = facet_postcard::to_vec(self).unwrap();
-        fs::write(path, data)
+    fn save_cache(&self, path: &PathBuf) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let data = facet_postcard::to_vec(self)?;
+        Ok(fs::write(path, data)?)
     }
 }
 
@@ -91,21 +91,21 @@ pub struct SpaceMouseDevice {
     pub translation: Arc<Mutex<Vector3>>,
     pub rotation: Arc<Mutex<Vector3>>,
 
+    thread_handle: Option<thread::JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>>,
     is_polling: Arc<AtomicBool>,
-    thread_status: Arc<Mutex<ThreadStatus>>,
 }
 
 impl SpaceMouseDevice {
     // no idea if this actually speeds anything up in godot, but worth a try since the device lookup is "documented to take several seconds"
-    pub fn find_with_cache(path: PathBuf) -> Result<Self, HidError> {
+    pub fn find_with_cache(path: PathBuf) -> Result<Self, Box<dyn Error + Send + Sync>> {
         if let Ok(ids) = DeviceIds::load_cache(&path) {
             return Ok(Self {
                 format: *DEVICE_FORMATS.get(&(ids.vendor, ids.product)).unwrap(),
                 info: ids,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                thread_handle: None,
                 is_polling: Arc::new(AtomicBool::new(false)),
-                thread_status: Arc::new(Mutex::new(ThreadStatus::Stopped)),
             });
         }
 
@@ -114,7 +114,7 @@ impl SpaceMouseDevice {
             result.info.save_cache(&path)?;
         }
 
-        result
+        Ok(result?)
     }
 
     pub fn find() -> Result<Self, HidError> {
@@ -140,81 +140,61 @@ impl SpaceMouseDevice {
                 format,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                thread_handle: None,
                 is_polling: Arc::new(AtomicBool::new(false)),
-                thread_status: Arc::new(Mutex::new(ThreadStatus::Stopped)),
             })
         })
     }
 
     /// whether the polling thread is currently running
     pub fn is_polling(&self) -> bool {
-        self.is_polling.load(Ordering::SeqCst)
+        self.is_polling.load(Ordering::Relaxed)
     }
 
     /// whether the polling thread should be running.
     /// setting to false will stop the thread gracefully.
     fn set_polling(&self, value: bool) {
-        self.is_polling.store(value, Ordering::SeqCst);
+        self.is_polling.store(value, Ordering::Relaxed);
     }
 
     /// stops the polling thread gracefully
-    pub fn stop_polling(&self) {
+    pub fn stop_polling(&mut self) {
         self.set_polling(false);
-    }
-
-    /// the current status of the polling thread
-    pub fn thread_status(&self) -> ThreadStatus {
-        self.thread_status.lock().unwrap().clone()
+        if let Some(handle) = self.thread_handle.take() {
+            let _ = handle.join();
+        };
     }
 
     /// starts the polling thread. the thread will run until `set_polling(false)` is called or an error occurs.
-    /// check `thread_status()` to determine if the thread crashed.
     pub fn start_polling(&mut self) {
-        self.is_polling.store(true, Ordering::SeqCst);
-        *self.thread_status.lock().unwrap() = ThreadStatus::Running;
+        self.is_polling.store(true, Ordering::Relaxed);
 
         let ids = self.info;
         let format = self.format;
         let translation = Arc::clone(&self.translation);
         let rotation = Arc::clone(&self.rotation);
         let is_polling = Arc::clone(&self.is_polling);
-        let thread_status = Arc::clone(&self.thread_status);
 
-        thread::spawn(move || {
-            let result = std::panic::catch_unwind(|| {
+        self.thread_handle = Some(thread::spawn(
+            move || -> Result<(), Box<dyn Error + Send + Sync>> {
                 HidApi::disable_device_discovery();
-                let hidapi = HidApi::new().unwrap();
-
-                let device = hidapi.open(ids.vendor, ids.product).unwrap();
-                device.set_blocking_mode(false).unwrap();
+                let hidapi = HidApi::new()?;
+                let device = hidapi.open(ids.vendor, ids.product)?;
+                device.set_blocking_mode(false)?;
 
                 let buffer: &mut [u8; 13] = &mut [0; 13];
-                while is_polling.load(Ordering::SeqCst) {
+                while is_polling.load(Ordering::Relaxed) {
                     for _ in 0..4 {
-                        if device.read(buffer).is_ok() {
-                            SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
-                        }
+                        device.read(buffer)?;
+                        SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
                     }
                     thread::sleep(Duration::from_millis(7)); // 144hz
                 }
-            });
 
-            is_polling.store(false, Ordering::SeqCst);
-            let mut status = thread_status.lock().unwrap();
-            match result {
-                Ok(()) => *status = ThreadStatus::Stopped,
-                Err(error) => {
-                    let msg = if let Some(s) = error.downcast_ref::<&str>() {
-                        s.to_string()
-                    } else if let Some(s) = error.downcast_ref::<String>() {
-                        s.clone()
-                    } else {
-                        "Unknown panic".to_string()
-                    };
-                    *status = ThreadStatus::Crashed(msg);
-                }
-            }
-        });
+                is_polling.store(false, Ordering::Relaxed);
+                Ok(())
+            },
+        ))
     }
 
     fn parse_data(
