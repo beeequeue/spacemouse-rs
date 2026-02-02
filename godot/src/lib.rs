@@ -222,8 +222,8 @@ impl IEditorPlugin for SpaceMousePlugin {
                 return;
             }
 
-            let translation = *spacemouse.translation.lock().unwrap();
-            let rotation = *spacemouse.rotation.lock().unwrap();
+            let translation = *spacemouse.translation.lock();
+            let rotation = *spacemouse.rotation.lock();
 
             self.translation_label
                 .as_mut()

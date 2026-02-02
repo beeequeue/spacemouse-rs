@@ -13,6 +13,7 @@ hidapi = { version = "2.6.4", default-features = false, features = [
   "windows-native",
 ] }
 lazy_static = "1.5.0"
+parking_lot = "0.12.5"
 
 [features]
 # Defines a feature named `webp` that does not enable any other features.

@@ -1,11 +1,12 @@
 use core::fmt;
+use parking_lot::Mutex;
 use std::error::Error;
 use std::{
     collections::HashMap,
     fs,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -206,12 +207,12 @@ impl SpaceMouseDevice {
         match format {
             Format::Original => {
                 if buffer[0] == 1 {
-                    let mut translation = translation.lock().unwrap();
+                    let mut translation = translation.lock();
                     translation.x = to_i16(&buffer[1..=2]) as f32;
                     translation.y = -to_i16(&buffer[5..=6]) as f32;
                     translation.z = to_i16(&buffer[3..=4]) as f32;
                 } else if buffer[0] == 2 {
-                    let mut rotation = rotation.lock().unwrap();
+                    let mut rotation = rotation.lock();
                     rotation.x = to_i16(&buffer[1..=2]) as f32;
                     rotation.y = -to_i16(&buffer[5..=6]) as f32;
                     rotation.z = to_i16(&buffer[3..=4]) as f32;
@@ -220,11 +221,11 @@ impl SpaceMouseDevice {
 
             Format::Current => {
                 if buffer[0] == 1 {
-                    let mut translation = translation.lock().unwrap();
+                    let mut translation = translation.lock();
                     translation.x = to_i16(&buffer[1..=2]) as f32;
                     translation.y = -to_i16(&buffer[5..=6]) as f32;
                     translation.z = to_i16(&buffer[3..=4]) as f32;
-                    let mut rotation = rotation.lock().unwrap();
+                    let mut rotation = rotation.lock();
                     rotation.x = to_i16(&buffer[7..=8]) as f32;
                     rotation.y = -to_i16(&buffer[1..=2]) as f32;
                     rotation.z = to_i16(&buffer[9..=10]) as f32;
