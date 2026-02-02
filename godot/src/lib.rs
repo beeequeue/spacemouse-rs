@@ -1,6 +1,6 @@
 mod settings;
 
-use std::{path::PathBuf, sync::mpsc, thread, time::Duration};
+use std::path::PathBuf;
 
 use godot::{
     classes::{
@@ -29,12 +29,13 @@ struct SpaceMousePlugin {
 
     // state
     spacemouse: Option<SpaceMouseDevice>,
+    is_crashed: bool,
+
     focused: bool,
     input_mode: InputMode,
     move_speed: f64,
     rotation_speed: f64,
     grab_position: Option<Vector3>,
-    end_polling: Option<mpsc::Sender<()>>,
 
     // ui
     control: Option<Gd<Control>>,
@@ -144,11 +145,14 @@ impl IEditorPlugin for SpaceMousePlugin {
     fn exit_tree(&mut self) {
         print(&["exit_tree".to_variant()]);
 
-        if let Some(end_polling) = self.end_polling.as_ref() {
-            end_polling.send(()).expect("could not kill polling thread");
+        if let Some(spacemouse) = self.spacemouse.as_ref()
+            && spacemouse.is_polling()
+        {
+            spacemouse.stop_polling();
             // this sleep somehow makes sure godot doesn't crash when reloading
             // the editor plugin after rebuilding it...
-            thread::sleep(Duration::from_millis(50));
+            #[cfg(debug_assertions)]
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
 
         let editor = EditorInterface::singleton();
@@ -174,9 +178,10 @@ impl IEditorPlugin for SpaceMousePlugin {
             .unwrap()
             .get_camera_3d();
 
-        if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path()) {
-            let channel = spacemouse.start_polling();
-            self.end_polling = Some(channel);
+        if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path())
+            && !spacemouse.is_polling()
+        {
+            spacemouse.start_polling();
             self.spacemouse = Some(spacemouse);
         }
 
@@ -203,10 +208,21 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn process(&mut self, delta: f64) {
+        if self.is_crashed {
+            return;
+        }
+
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
             && let Some(mut camera) = self.camera.take()
         {
+            // handle polling thread crashing
+            if let spacemouse::ThreadStatus::Crashed(message) = spacemouse.thread_status() && !self.is_crashed {
+                godot_print!("SpaceMouse polling thread crashed:\n{}", message);
+                self.is_crashed = true;
+                return;
+            }
+
             let translation = *spacemouse.translation.lock().unwrap();
             let rotation = *spacemouse.rotation.lock().unwrap();
 

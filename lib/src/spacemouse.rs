@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
-        mpsc::{self, TryRecvError},
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::Duration,
@@ -72,6 +72,17 @@ impl DeviceIds {
     }
 }
 
+/// status of the polling thread
+#[derive(Debug, Clone)]
+pub enum ThreadStatus {
+    /// Thread is running normally
+    Running,
+    /// Thread stopped normally
+    Stopped,
+    /// Thread crashed with an error message
+    Crashed(String),
+}
+
 pub struct SpaceMouseDevice {
     #[allow(private_interfaces)]
     pub info: DeviceIds,
@@ -79,6 +90,9 @@ pub struct SpaceMouseDevice {
 
     pub translation: Arc<Mutex<Vector3>>,
     pub rotation: Arc<Mutex<Vector3>>,
+
+    is_polling: Arc<AtomicBool>,
+    thread_status: Arc<Mutex<ThreadStatus>>,
 }
 
 impl SpaceMouseDevice {
@@ -90,12 +104,14 @@ impl SpaceMouseDevice {
                 info: ids,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                is_polling: Arc::new(AtomicBool::new(false)),
+                thread_status: Arc::new(Mutex::new(ThreadStatus::Stopped)),
             });
         }
 
         let result = Self::find();
         if let Ok(result) = result.as_ref() {
-            result.info.save_cache(&path).unwrap();
+            result.info.save_cache(&path)?;
         }
 
         result
@@ -124,45 +140,84 @@ impl SpaceMouseDevice {
                 format,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                is_polling: Arc::new(AtomicBool::new(false)),
+                thread_status: Arc::new(Mutex::new(ThreadStatus::Stopped)),
             })
         })
     }
 
-    pub fn start_polling(&mut self) -> mpsc::Sender<()> {
-        let (tx, rx) = mpsc::channel();
+    /// whether the polling thread is currently running
+    pub fn is_polling(&self) -> bool {
+        self.is_polling.load(Ordering::SeqCst)
+    }
+
+    /// whether the polling thread should be running.
+    /// setting to false will stop the thread gracefully.
+    fn set_polling(&self, value: bool) {
+        self.is_polling.store(value, Ordering::SeqCst);
+    }
+
+    /// stops the polling thread gracefully
+    pub fn stop_polling(&self) {
+        self.set_polling(false);
+    }
+
+    /// the current status of the polling thread
+    pub fn thread_status(&self) -> ThreadStatus {
+        self.thread_status.lock().unwrap().clone()
+    }
+
+    /// starts the polling thread. the thread will run until `set_polling(false)` is called or an error occurs.
+    /// check `thread_status()` to determine if the thread crashed.
+    pub fn start_polling(&mut self) {
+        self.is_polling.store(true, Ordering::SeqCst);
+        *self.thread_status.lock().unwrap() = ThreadStatus::Running;
 
         let ids = self.info;
         let format = self.format;
         let translation = Arc::clone(&self.translation);
         let rotation = Arc::clone(&self.rotation);
+        let is_polling = Arc::clone(&self.is_polling);
+        let thread_status = Arc::clone(&self.thread_status);
 
         thread::spawn(move || {
-            HidApi::disable_device_discovery();
-            let hidapi = HidApi::new().unwrap();
+            let result = std::panic::catch_unwind(|| {
+                HidApi::disable_device_discovery();
+                let hidapi = HidApi::new().unwrap();
 
-            let device = hidapi.open(ids.vendor, ids.product).unwrap();
-            device.set_blocking_mode(false).unwrap();
+                let device = hidapi.open(ids.vendor, ids.product).unwrap();
+                device.set_blocking_mode(false).unwrap();
 
-            let buffer: &mut [u8; 13] = &mut [0; 13];
-            loop {
-                match rx.try_recv() {
-                    Ok(_) | Err(TryRecvError::Disconnected) => break,
-                    Err(TryRecvError::Empty) => (),
-                }
-
-                for _ in 0..4 {
-                    if device.read(buffer).is_ok() {
-                        SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                let buffer: &mut [u8; 13] = &mut [0; 13];
+                while is_polling.load(Ordering::SeqCst) {
+                    for _ in 0..4 {
+                        if device.read(buffer).is_ok() {
+                            SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                        }
                     }
+                    thread::sleep(Duration::from_millis(7)); // 144hz
                 }
-                thread::sleep(Duration::from_millis(7)); // 144hz
+            });
+
+            is_polling.store(false, Ordering::SeqCst);
+            let mut status = thread_status.lock().unwrap();
+            match result {
+                Ok(()) => *status = ThreadStatus::Stopped,
+                Err(error) => {
+                    let msg = if let Some(s) = error.downcast_ref::<&str>() {
+                        s.to_string()
+                    } else if let Some(s) = error.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        "Unknown panic".to_string()
+                    };
+                    *status = ThreadStatus::Crashed(msg);
+                }
             }
         });
-
-        tx
     }
 
-    pub fn parse_data(
+    fn parse_data(
         format: &Format,
         buffer: &[u8],
         translation: &Arc<Mutex<Vector3>>,
