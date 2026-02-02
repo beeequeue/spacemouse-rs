@@ -7,7 +7,6 @@ use godot::{
         Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, Label, MeshInstance3D,
         PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
     },
-    global::print,
     prelude::*,
 };
 use spacemouse::SpaceMouseDevice;
@@ -112,7 +111,7 @@ impl SpaceMousePlugin {
 #[godot_api]
 impl IEditorPlugin for SpaceMousePlugin {
     fn enter_tree(&mut self) {
-        print(&["enter_tree".to_variant()]);
+        godot_print!("enter_tree");
 
         settings::init();
         let editor = EditorInterface::singleton();
@@ -143,7 +142,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn exit_tree(&mut self) {
-        print(&["exit_tree".to_variant()]);
+        godot_print!("exit_tree");
 
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && spacemouse.is_polling()
