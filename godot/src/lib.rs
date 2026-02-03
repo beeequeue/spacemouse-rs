@@ -111,6 +111,7 @@ impl SpaceMousePlugin {
 #[godot_api]
 impl IEditorPlugin for SpaceMousePlugin {
     fn enter_tree(&mut self) {
+        #[cfg(debug_assertions)]
         godot_print!("enter_tree");
 
         settings::init();
@@ -142,6 +143,7 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn exit_tree(&mut self) {
+        #[cfg(debug_assertions)]
         godot_print!("exit_tree");
 
         if let Some(spacemouse) = self.spacemouse.as_mut()
