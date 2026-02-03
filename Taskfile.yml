@@ -1,6 +1,6 @@
 version: 3
 
-interval: 500ms
+interval: 1000ms
 
 tasks:
   lint:
@@ -23,7 +23,10 @@ tasks:
     desc: Run tests
     sources:
       - .cargo/config.toml
-      - src/**
+      - godot/src/**
+      - godot/Cargo.toml
+      - lib/**
+      - lib/Cargo.toml
       - Cargo.*
       - rust-toolchain.*
     cmds:
@@ -42,8 +45,10 @@ tasks:
     desc: Build debug artifacts
     sources:
       - .cargo/config.toml
-      - src/**
+      - godot/src/**
+      - lib/**
       - Cargo.*
+      - ./*/Cargo.toml
       - rust-toolchain.*
     generates:
       - target/debug/**
@@ -53,8 +58,12 @@ tasks:
   build:release:
     desc: Build release artifacts
     sources:
+      - .cargo/config.toml
+      - godot/src/**
+      - lib/**
       - Cargo.*
-      - src/**
+      - ./*/Cargo.toml
+      - rust-toolchain.*
     generates:
       - target/release/**
     cmds:
