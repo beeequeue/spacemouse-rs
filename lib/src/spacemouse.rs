@@ -160,11 +160,15 @@ impl SpaceMouseDevice {
     }
 
     /// stops the polling thread gracefully
-    pub fn stop_polling(&mut self) {
+    pub fn stop_polling(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.set_polling(false);
         if let Some(handle) = self.thread_handle.take() {
-            let _ = handle.join();
+            return handle.join().unwrap_or_else(|_| {
+                Err(Box::from("Unknown error from polling thread."))
+            });
         };
+
+        Ok(())
     }
 
     /// starts the polling thread. the thread will run until `set_polling(false)` is called or an error occurs.

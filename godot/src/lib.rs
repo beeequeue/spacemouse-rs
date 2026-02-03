@@ -28,7 +28,6 @@ struct SpaceMousePlugin {
 
     // state
     spacemouse: Option<SpaceMouseDevice>,
-    is_crashed: bool,
 
     focused: bool,
     input_mode: InputMode,
@@ -146,10 +145,11 @@ impl IEditorPlugin for SpaceMousePlugin {
         #[cfg(debug_assertions)]
         godot_print!("exit_tree");
 
-        if let Some(spacemouse) = self.spacemouse.as_mut()
-            && spacemouse.is_polling()
-        {
-            spacemouse.stop_polling();
+        if let Some(spacemouse) = self.spacemouse.as_mut() {
+            let res = spacemouse.stop_polling();
+            if let Err(error) = res {
+                godot_error!("SpaceMouse polling thread crashed: {}", error);
+            };
             // this sleep somehow makes sure godot doesn't crash when reloading
             // the editor plugin after rebuilding it...
             #[cfg(debug_assertions)]
@@ -209,18 +209,13 @@ impl IEditorPlugin for SpaceMousePlugin {
     }
 
     fn process(&mut self, delta: f64) {
-        if self.is_crashed {
-            return;
-        }
-
         if let Some(spacemouse) = self.spacemouse.as_ref()
             && self.focused
             && let Some(mut camera) = self.camera.take()
         {
-            // handle polling thread crashing
-            if !spacemouse.is_polling() && !self.is_crashed {
-                godot_print!("SpaceMouse polling thread crashed:\n{}", "TODO");
-                self.is_crashed = true;
+            // handle polling thread stopping
+            if !spacemouse.is_polling() {
+                self.exit_tree();
                 return;
             }
 
