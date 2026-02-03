@@ -21,6 +21,7 @@ use lazy_static::lazy_static;
 use crate::vector3::Vector3;
 #[cfg(feature = "godot")]
 use godot::prelude::Vector3;
+use scopeguard::defer;
 
 fn to_i16(slice: &[u8]) -> i16 {
     i16::from_le_bytes(slice.try_into().unwrap())
@@ -178,6 +179,10 @@ impl SpaceMouseDevice {
 
         self.thread_handle = Some(thread::spawn(
             move || -> Result<(), Box<dyn Error + Send + Sync>> {
+                defer! {
+                    is_polling.store(false, Ordering::Relaxed);
+                }
+
                 HidApi::disable_device_discovery();
                 let hidapi = HidApi::new()?;
                 let device = hidapi.open(ids.vendor, ids.product)?;
@@ -192,7 +197,6 @@ impl SpaceMouseDevice {
                     thread::sleep(Duration::from_millis(7)); // 144hz
                 }
 
-                is_polling.store(false, Ordering::Relaxed);
                 Ok(())
             },
         ))

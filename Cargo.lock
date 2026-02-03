@@ -586,6 +586,7 @@ dependencies = [
  "hidapi",
  "lazy_static",
  "parking_lot",
+ "scopeguard",
 ]
 
 [[package]]
