@@ -1,6 +1,6 @@
 use core::fmt;
 
-use godot::{classes::EditorInterface, global::PropertyHint, prelude::*};
+use godot::{classes::EditorInterface, prelude::*, register::info::PropertyHint};
 
 // const SETTING_HID: &str = "spacemouse/hid";
 pub const SETTING_INPUT_MODE: &str = "spacemouse/input_mode";
@@ -50,22 +50,28 @@ pub fn init() {
             &Variant::from(InputMode::Fly.to_string()),
         );
     }
-    settings.add_property_info(&vdict! {
-        "name": SETTING_INPUT_MODE,
-        "type": VariantType::STRING,
-        "hint": PropertyHint::ENUM,
-        "hint_string": "Fly,Grab",
-    });
+    settings.add_property_info(
+        &vdict! {
+            "name" => SETTING_INPUT_MODE,
+            "type" => VariantType::STRING,
+            "hint" => PropertyHint::ENUM,
+            "hint_string" => "Fly,Grab",
+        }
+        .upcast_any_dictionary(),
+    );
 
     if !settings.has_setting(SETTING_MOVE_SPEED) {
         settings.set_setting(SETTING_MOVE_SPEED, &Variant::from(DEFAULT_MOVE_SPEED));
     }
-    settings.add_property_info(&vdict! {
-        "name": SETTING_MOVE_SPEED,
-        "type": VariantType::FLOAT,
-        "hint": PropertyHint::RANGE,
-        "hint_string": "0,20",
-    });
+    settings.add_property_info(
+        &vdict! {
+            "name" => SETTING_MOVE_SPEED,
+            "type" => VariantType::FLOAT,
+            "hint" => PropertyHint::RANGE,
+            "hint_string" => "0,20",
+        }
+        .upcast_any_dictionary(),
+    );
 
     if !settings.has_setting(SETTING_ROTATION_SPEED) {
         settings.set_setting(
@@ -73,12 +79,15 @@ pub fn init() {
             &Variant::from(DEFAULT_ROTATION_SPEED),
         );
     }
-    settings.add_property_info(&vdict! {
-        "name": SETTING_ROTATION_SPEED,
-        "type": VariantType::FLOAT,
-        "hint": PropertyHint::RANGE,
-        "hint_string": "0,20",
-    });
+    settings.add_property_info(
+        &vdict! {
+            "name" => SETTING_ROTATION_SPEED,
+            "type" => VariantType::FLOAT,
+            "hint" => PropertyHint::RANGE,
+            "hint_string" => "0,20",
+        }
+        .upcast_any_dictionary(),
+    );
 }
 
 pub fn get_input_mode() -> InputMode {
