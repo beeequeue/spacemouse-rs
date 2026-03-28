@@ -1,2 +1,8 @@
-- [ ] make lib return 0.0 - 1.0
-- [ ] replace placeholder ball with gizmo
+## TODO
+
+- library
+  - [ ] convert values to -1.0 ↔ 1.0
+- godot addon
+  - [ ] replace placeholder ball with gizmo
+  - [ ] make grabbing raycast bigger
+  - [ ] remember last used grab distance until moving far enough away
