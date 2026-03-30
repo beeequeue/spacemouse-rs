@@ -313,7 +313,7 @@ dependencies = [
 
 [[package]]
 name = "godot-spacemouse"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "godot",
  "spacemouse",
@@ -596,7 +596,7 @@ checksum = "ef784004ca8777809dcdad6ac37629f0a97caee4c685fcea805278d81dd8b857"
 
 [[package]]
 name = "spacemouse"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "facet",
  "facet-postcard",

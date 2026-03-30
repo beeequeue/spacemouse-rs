@@ -1,0 +1,84 @@
+name: CI & Releasing
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read # read files
+
+jobs:
+  ci:
+    runs-on: depot-ubuntu-24.04
+      #size: 2x8
+      #image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+
+      - name: Cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - parallel:
+          - name: Build
+            run: cargo build --release
+
+          - name: Lint
+            run: cargo clippy --all-targets -- -D warnings
+
+          - name: Formatting
+            run: cargo fmt --all --check
+
+          - name: Test
+            run: cargo test
+
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      #   with:
+      #     name: build-artifacts
+      #     path: |
+      #       lib/godot_spacemouse.dll
+      #       lib/libgodot_spacemouse.dylib
+      #       lib/libgodot_spacemouse.so
+
+  release:
+    needs: [ci]
+    runs-on: depot-ubuntu-24.04
+      #size: 2x8
+      #image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
+    permissions:
+      contents: write # Create tags and releases
+      pull-requests: write # Create and update release PRs
+      discussions: write # Open GitHub Discussions (optional)
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Run Sampo Release/Publish Action
+        id: sampo
+        uses: bruits/sampo/crates/sampo-github-action@438b2ebfb4a78c1b8c2fe3a3da8c825cb21c6131 # v0.15.0
+        with:
+          create-github-release: true
+          #release-assets: blah/*.dll
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }} # For Cargo packages (optional)

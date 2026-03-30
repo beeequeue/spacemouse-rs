@@ -1,0 +1,23 @@
+name: Build CI Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read # read files
+
+jobs:
+  build:
+    runs-on: depot-ubuntu-24.04
+    steps:
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+
+      - uses: depot/snapshot-action@b11edd94cf3edbcab102fc45e695c2967953e177 # v1.0.0
+        with:
+          image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
