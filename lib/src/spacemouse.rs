@@ -29,13 +29,13 @@ fn to_i16(slice: &[u8]) -> i16 {
 
 lazy_static! {
     pub static ref DEVICE_FORMATS: HashMap<(u16, u16), Format> = HashMap::from([
-        ((0x046d, 0xc626), Format::Original),   // 3Dconnexion Space Navigator 3D Mouse
-        ((0x256f, 0xc635), Format::Original),   // SpaceMouse Compact
-        ((0x256f, 0xc632), Format::Current),    // SpaceMouse Pro Wireless Receiver
-        ((0x046d, 0xc62b), Format::Original),   // 3Dconnexion Space Mouse Pro
-        ((0x256f, 0xc62e), Format::Current),    // SpaceMouse Wireless (cabled)
-        ((0x256f, 0xc652), Format::Current),    // Universal Receiver
-        ((0x046d, 0xc629), Format::Original),   // 3Dconnexion SpacePilot Pro 3D Mouse
+        ((0x046D, 0xC626), Format::Original),   // 3Dconnexion Space Navigator 3D Mouse
+        ((0x256F, 0xC635), Format::Original),   // SpaceMouse Compact
+        ((0x256F, 0xC632), Format::Current),    // SpaceMouse Pro Wireless Receiver
+        ((0x046D, 0xC62B), Format::Original),   // 3Dconnexion Space Mouse Pro
+        ((0x256F, 0xC62E), Format::Current),    // SpaceMouse Wireless (cabled)
+        ((0x256F, 0xC652), Format::Current),    // Universal Receiver
+        ((0x046D, 0xC629), Format::Original),   // 3Dconnexion SpacePilot Pro 3D Mouse
     ]);
 }
 
@@ -163,9 +163,9 @@ impl SpaceMouseDevice {
     pub fn stop_polling(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.set_polling(false);
         if let Some(handle) = self.thread_handle.take() {
-            return handle.join().unwrap_or_else(|_| {
-                Err(Box::from("Unknown error from polling thread."))
-            });
+            return handle
+                .join()
+                .unwrap_or_else(|_| Err(Box::from("Unknown error from polling thread.")));
         };
 
         Ok(())
