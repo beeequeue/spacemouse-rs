@@ -92,6 +92,8 @@ pub struct SpaceMouseDevice {
 
     pub translation: Arc<Mutex<Vector3>>,
     pub rotation: Arc<Mutex<Vector3>>,
+    /// battery percentage (0-100) if available. currently only supports models using the newer data protocol, since that's what i have on hand.
+    pub battery: Arc<Mutex<Option<u8>>>,
 
     thread_handle: Option<thread::JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>>,
     is_polling: Arc<AtomicBool>,
@@ -106,6 +108,7 @@ impl SpaceMouseDevice {
                 info: ids,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                battery: Arc::new(Mutex::new(None)),
                 thread_handle: None,
                 is_polling: Arc::new(AtomicBool::new(false)),
             });
@@ -150,6 +153,7 @@ impl SpaceMouseDevice {
                 format,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
                 rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                battery: Arc::new(Mutex::new(None)),
                 thread_handle: None,
                 is_polling: Arc::new(AtomicBool::new(false)),
             })
@@ -187,6 +191,7 @@ impl SpaceMouseDevice {
         let format = self.format;
         let translation = Arc::clone(&self.translation);
         let rotation = Arc::clone(&self.rotation);
+        let battery = Arc::clone(&self.battery);
         let is_polling = Arc::clone(&self.is_polling);
 
         self.thread_handle = Some(thread::spawn(
@@ -204,7 +209,13 @@ impl SpaceMouseDevice {
                 while is_polling.load(Ordering::Relaxed) {
                     for _ in 0..4 {
                         device.read(buffer)?;
-                        SpaceMouseDevice::parse_data(&format, buffer, &translation, &rotation);
+                        SpaceMouseDevice::parse_data(
+                            &format,
+                            buffer,
+                            &translation,
+                            &rotation,
+                            &battery,
+                        );
                     }
                     thread::sleep(Duration::from_millis(7)); // 144hz
                 }
@@ -219,6 +230,7 @@ impl SpaceMouseDevice {
         buffer: &[u8],
         translation: &Arc<Mutex<Vector3>>,
         rotation: &Arc<Mutex<Vector3>>,
+        battery: &Arc<Mutex<Option<u8>>>,
     ) {
         match format {
             Format::Original => {
@@ -245,6 +257,9 @@ impl SpaceMouseDevice {
                     rotation.x = to_i16(&buffer[7..=8]) as f32;
                     rotation.y = -to_i16(&buffer[1..=2]) as f32;
                     rotation.z = to_i16(&buffer[9..=10]) as f32;
+                } else if buffer[0] == 23 {
+                    let mut battery = battery.lock();
+                    *battery = Some(to_i16(&buffer[1..=2]) as u8);
                 }
             }
         }
