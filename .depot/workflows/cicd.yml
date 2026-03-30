@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   ci:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-24.04-4
       #size: 2x8
       #image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
 
