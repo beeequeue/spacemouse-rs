@@ -125,7 +125,15 @@ impl SpaceMouseDevice {
 
         let found = hidapi.device_list().find_map(|device| {
             DEVICE_FORMATS.iter().find_map(|(known, format)| {
-                if device.vendor_id() == known.0 && device.product_id() == known.1 {
+                if device.vendor_id() == known.0
+                    && device.product_id() == known.1
+                    // Usage Page 1 is for "Generic Desktop Controls"
+                    // https://learn.microsoft.com/en-us/windows-hardware/drivers/hid/hid-usages#usage-page
+                    && device.usage_page() == 0x01
+                    // Usage ID 8 is for "Multi-axis Controller"
+                    // https://learn.microsoft.com/en-us/windows-hardware/drivers/hid/hid-usages#usage-id
+                    && device.usage() == 8
+                {
                     Some((known, *format))
                 } else {
                     None
