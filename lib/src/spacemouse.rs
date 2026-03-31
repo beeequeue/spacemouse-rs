@@ -1,6 +1,7 @@
 use core::fmt;
 use parking_lot::Mutex;
 use std::error::Error;
+use std::ffi::CString;
 use std::{
     collections::HashMap,
     fs,
@@ -54,11 +55,12 @@ impl fmt::Display for Format {
     }
 }
 
-#[derive(Facet, Clone, Copy)]
+#[derive(Facet, Clone, Debug)]
 #[facet(deny_unknown_fields, skip_all_unless_truthy)]
 struct DeviceIds {
     vendor: u16,
     product: u16,
+    path: String,
 }
 
 impl DeviceIds {
@@ -137,27 +139,31 @@ impl SpaceMouseDevice {
                     // https://learn.microsoft.com/en-us/windows-hardware/drivers/hid/hid-usages#usage-id
                     && device.usage() == 8
                 {
-                    Some((known, *format))
+                    Some((known, device.path(), *format))
                 } else {
                     None
                 }
             })
         });
 
-        found.map_or(Err(HidError::HidApiErrorEmpty), |(device, format)| {
-            Ok(Self {
-                info: DeviceIds {
-                    vendor: device.0,
-                    product: device.1,
-                },
-                format,
-                translation: Arc::new(Mutex::new(Vector3::ZERO)),
-                rotation: Arc::new(Mutex::new(Vector3::ZERO)),
-                battery: Arc::new(Mutex::new(None)),
-                thread_handle: None,
-                is_polling: Arc::new(AtomicBool::new(false)),
-            })
-        })
+        found.map_or(
+            Err(HidError::HidApiErrorEmpty),
+            |(device, serial_number, format)| {
+                Ok(Self {
+                    info: DeviceIds {
+                        vendor: device.0,
+                        product: device.1,
+                        path: serial_number.to_str().unwrap().to_owned(),
+                    },
+                    format,
+                    translation: Arc::new(Mutex::new(Vector3::ZERO)),
+                    rotation: Arc::new(Mutex::new(Vector3::ZERO)),
+                    battery: Arc::new(Mutex::new(None)),
+                    thread_handle: None,
+                    is_polling: Arc::new(AtomicBool::new(false)),
+                })
+            },
+        )
     }
 
     /// whether the polling thread is currently running
@@ -187,7 +193,7 @@ impl SpaceMouseDevice {
     pub fn start_polling(&mut self) {
         self.is_polling.store(true, Ordering::Relaxed);
 
-        let ids = self.info;
+        let hid_path = self.info.path.to_owned();
         let format = self.format;
         let translation = Arc::clone(&self.translation);
         let rotation = Arc::clone(&self.rotation);
@@ -202,7 +208,8 @@ impl SpaceMouseDevice {
 
                 HidApi::disable_device_discovery();
                 let hidapi = HidApi::new()?;
-                let device = hidapi.open(ids.vendor, ids.product)?;
+                let path = CString::new(hid_path.as_str())?;
+                let device = hidapi.open_path(&path)?;
                 device.set_blocking_mode(false)?;
 
                 let buffer: &mut [u8; 13] = &mut [0; 13];
