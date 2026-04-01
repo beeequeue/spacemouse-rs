@@ -11,7 +11,7 @@ tasks:
   lint:fix:
     desc: Lint code and fix problems with autofixes
     cmds:
-      - cargo clippy --fix --allow-staged --allow-dirty
+      - cargo clippy --all-targets --fix --allow-staged --allow-dirty
       - task: format
 
   format:
