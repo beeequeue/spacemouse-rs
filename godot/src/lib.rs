@@ -225,7 +225,7 @@ impl IEditorPlugin for SpaceMousePlugin {
                                 (grab_position.distance_to(camera_origin) / 8.0) + 0.01;
                             let offset_speed = offset_speed.clamp(0.01, 8.0);
 
-                            let space_trans = camera_transform * translation * GRAB_MODE_MOVE_FLIP;
+                            let space_trans = camera_transform.basis * translation * GRAB_MODE_MOVE_FLIP;
                             let space_trans = space_trans * 0.1 * offset_speed * delta as f32;
                             let space_rot =
                                 rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
