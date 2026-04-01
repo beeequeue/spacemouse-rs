@@ -26,7 +26,7 @@ jobs:
         run: rustup set profile minimal
 
       - name: Install Clippy
-        run: rustup component add clippy
+        run: rustup component add clippy rustfmt
 
       - uses: cargo-bins/cargo-binstall@0b24824336e2b3800b0f89d9e08b2c08bfa3dcdd # v1.17.9
         with:
@@ -35,4 +35,4 @@ jobs:
 
       - uses: depot/snapshot-action@b11edd94cf3edbcab102fc45e695c2967953e177 # v1.0.0
         with:
-          image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260401
+          image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260401-2
