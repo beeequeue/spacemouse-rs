@@ -4,11 +4,8 @@ export def main [
 ] {
   mkdir $target_dir
 
-  let base_path: path = ($target_dir | path join addons spacemouse2)
+  let base_path: path = ($target_dir | path join addons spacemouse)
   let files = {
-    #"godot/plugin.cfg": "plugin.cfg"
-    "godot/settings.tscn": "settings.tscn"
-    #"godot/spacemouse.gd": "spacemouse.gd"
     "godot/spacemouse.gdextension": "spacemouse.gdextension"
     "target/:MODE:/godot_spacemouse.dll": "lib/godot_spacemouse.dll"
     "target/:MODE:/libgodot_spacemouse.dylib": "lib/libgodot_spacemouse.dylib"

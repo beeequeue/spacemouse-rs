@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use godot::{
     classes::{
-        Camera3D, Control, EditorInterface, EditorPlugin, IEditorPlugin, Label, MeshInstance3D,
-        PhysicsRayQueryParameters3D, SphereMesh, editor_plugin::DockSlot,
+        Camera3D, EditorInterface, EditorPlugin, IEditorPlugin, MeshInstance3D,
+        PhysicsRayQueryParameters3D, SphereMesh,
     },
     prelude::*,
 };
@@ -34,12 +34,6 @@ struct SpaceMousePlugin {
     move_speed: f64,
     rotation_speed: f64,
     grab_position: Option<Vector3>,
-
-    // ui
-    control: Option<Gd<Control>>,
-    type_label: Option<Gd<Label>>,
-    translation_label: Option<Gd<Label>>,
-    rotation_label: Option<Gd<Label>>,
 
     // 3d
     camera: Option<Gd<Camera3D>>,
@@ -124,21 +118,6 @@ impl IEditorPlugin for SpaceMousePlugin {
             self.move_speed = settings::get_move_speed();
             self.rotation_speed = settings::get_rotation_speed();
         };
-
-        let settings_scene = load::<PackedScene>("res://addons/spacemouse2/settings.tscn");
-        let control = settings_scene
-            .instantiate()
-            .unwrap()
-            .try_cast::<Control>()
-            .unwrap();
-
-        self.type_label = Some(control.get_node_as("Bottom/DebugInfo/TypeLabel"));
-        self.translation_label = Some(control.get_node_as("Bottom/DebugInfo/TransformLabel"));
-        self.rotation_label = Some(control.get_node_as("Bottom/DebugInfo/RotationLabel"));
-
-        self.to_gd()
-            .add_control_to_dock(DockSlot::LEFT_UR, &control);
-        self.control = Some(control);
     }
 
     fn exit_tree(&mut self) {
@@ -163,10 +142,6 @@ impl IEditorPlugin for SpaceMousePlugin {
                 &self.base().callable("on_settings_changed"),
             );
         };
-
-        if let Some(control) = self.control.as_ref() {
-            self.to_gd().remove_control_from_docks(control);
-        }
     }
 
     fn ready(&mut self) {
@@ -184,12 +159,6 @@ impl IEditorPlugin for SpaceMousePlugin {
         {
             spacemouse.start_polling();
             self.spacemouse = Some(spacemouse);
-        }
-
-        if let Some(type_label) = self.type_label.as_mut()
-            && let Some(spacemouse) = &self.spacemouse
-        {
-            type_label.set_text(&spacemouse.format.to_string());
         }
 
         // window focus
@@ -221,16 +190,6 @@ impl IEditorPlugin for SpaceMousePlugin {
 
             let translation = *spacemouse.translation.lock();
             let rotation = *spacemouse.rotation.lock();
-
-            self.translation_label
-                .as_mut()
-                .unwrap()
-                .set_text(&translation.to_string());
-
-            self.rotation_label
-                .as_mut()
-                .unwrap()
-                .set_text(&rotation.to_string());
 
             if !translation.is_zero_approx() || !rotation.is_zero_approx() {
                 if self.input_mode == InputMode::Fly {
