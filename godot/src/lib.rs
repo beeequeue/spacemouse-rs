@@ -15,6 +15,8 @@ use crate::settings::InputMode;
 
 const GRAB_MODE_MOVE_FLIP: Vector3 = Vector3::new(-1.0, 1.0, 1.0);
 const GRAB_MODE_ROTATION_FLIP: Vector3 = Vector3::new(1.0, -1.0, 1.0);
+const FLY_MODE_MOVE_FLIP: Vector3 = Vector3::new(1.0, -1.0, -1.0);
+const FLY_MODE_ROTATION_FLIP: Vector3 = Vector3::new(1.0, -1.0, -1.0);
 
 struct SpaceMouse;
 #[gdextension]
@@ -193,8 +195,9 @@ impl IEditorPlugin for SpaceMousePlugin {
 
             if !translation.is_zero_approx() || !rotation.is_zero_approx() {
                 if self.input_mode == InputMode::Fly {
-                    camera.translate(translation * 0.05 * delta as f32);
-                    let new_rotation = camera.get_rotation() + (rotation * 0.025 * delta as f32);
+                    camera.translate(translation * 0.05 * FLY_MODE_MOVE_FLIP * delta as f32);
+                    let new_rotation = camera.get_rotation()
+                        + (rotation * 0.025 * FLY_MODE_ROTATION_FLIP * delta as f32);
                     camera.set_rotation(new_rotation);
                 } else {
                     let middle_of_screen =
@@ -225,7 +228,8 @@ impl IEditorPlugin for SpaceMousePlugin {
                                 (grab_position.distance_to(camera_origin) / 8.0) + 0.01;
                             let offset_speed = offset_speed.clamp(0.01, 8.0);
 
-                            let space_trans = camera_transform.basis * translation * GRAB_MODE_MOVE_FLIP;
+                            let space_trans =
+                                camera_transform.basis * translation * GRAB_MODE_MOVE_FLIP;
                             let space_trans = space_trans * 0.1 * offset_speed * delta as f32;
                             let space_rot =
                                 rotation * 0.02 * GRAB_MODE_ROTATION_FLIP * delta as f32;
