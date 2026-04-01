@@ -167,7 +167,7 @@ impl SpaceMouseDevice {
             return handle.join().unwrap_or_else(|err| {
                 Err(err
                     .downcast_ref::<String>()
-                    .map_or_else(|| "Unknown thread panic".to_owned(), |s| s.to_owned())
+                    .map_or("Unknown thread panic".to_string(), |s| s.to_owned())
                     .into())
             });
         };
