@@ -105,33 +105,45 @@ jobs:
       - name: Build
         run: task build:release
 
-      # - name: Upload artifacts
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      #   with:
-      #     name: build-artifacts
-      #     path: |
-      #       lib/godot_spacemouse.dll
-      #       lib/libgodot_spacemouse.dylib
-      #       lib/libgodot_spacemouse.so
+      - name: Upload artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: release-build-${{ runner.os }}
+          path: |
+            target/release/godot_spacemouse.dll
+            target/release/libgodot_spacemouse.dylib
+            target/release/libgodot_spacemouse.so
 
   release:
     needs: [dev, build]
     runs-on: depot-ubuntu-24.04
       #size: 2x8
       #image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
+
     permissions:
       contents: write # Create tags and releases
       pull-requests: write # Create and update release PRs
       discussions: write # Open GitHub Discussions (optional)
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: true
           fetch-depth: 0
 
+      - name: Download artifacts
+        uses: actions/download-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          pattern: release-build-*
+          merge-multiple: true
+
+      - name: list files
+        run: ls -R target/release
+
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          prefix-key: v1-sampo
+          add-job-id-key: false
+          shared-key: v1-sampo
 
       - name: Run Sampo Release/Publish Action
         id: sampo
