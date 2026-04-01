@@ -13,7 +13,7 @@ use spacemouse::SpaceMouseDevice;
 
 use crate::settings::InputMode;
 
-const GRAB_MODE_MOVE_FLIP: Vector3 = Vector3::new(-1.0, -1.0, -1.0);
+const GRAB_MODE_MOVE_FLIP: Vector3 = Vector3::new(-1.0, 1.0, 1.0);
 const GRAB_MODE_ROTATION_FLIP: Vector3 = Vector3::new(1.0, -1.0, 1.0);
 
 struct SpaceMouse;

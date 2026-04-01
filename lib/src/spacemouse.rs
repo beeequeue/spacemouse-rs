@@ -253,7 +253,7 @@ impl SpaceMouseDevice {
                     v1::Packet::Motion(packet) => {
                         let mut translation = translation.lock();
                         translation.x = packet.x as f32;
-                        translation.y = -packet.z as f32;
+                        translation.y = packet.z as f32;
                         translation.z = -packet.y as f32;
 
                         let mut rotation = rotation.lock();
