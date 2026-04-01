@@ -73,14 +73,6 @@ jobs:
       #size: 2x8
       #image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
 
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - depot-ubuntu-24.04
-          - depot-windows-2022-4
-          - depot-macos-15
-
     steps:
       - name: Install dependencies
         run: |
@@ -138,7 +130,7 @@ jobs:
           merge-multiple: true
 
       - name: list files
-        run: ls -R target/release
+        run: ls -R
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:

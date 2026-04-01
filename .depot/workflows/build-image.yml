@@ -10,14 +10,29 @@ jobs:
   build:
     runs-on: depot-ubuntu-24.04
     steps:
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libudev-dev
 
+      - uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2
+
+      - name: Set Minimal Profile
+        run: rustup set profile minimal
+
+      - name: Install Clippy
+        run: rustup component add clippy
+
+      - uses: cargo-bins/cargo-binstall@0b24824336e2b3800b0f89d9e08b2c08bfa3dcdd # v1.17.9
+        with:
+          version: "1.17.9" # optional; defaults to latest
+      - run: cargo binstall cargo-nextest@0.9.132
+
       - uses: depot/snapshot-action@b11edd94cf3edbcab102fc45e695c2967953e177 # v1.0.0
         with:
-          image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260330
+          image: v3pngn245j.registry.depot.dev/spacemouse-rs:1.94.1-20260401
