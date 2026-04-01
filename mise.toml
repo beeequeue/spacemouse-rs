@@ -1,0 +1,3 @@
+[tools]
+"cargo:cargo-nextest" = "latest"
+rust = "1.94.1"

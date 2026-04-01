@@ -30,7 +30,7 @@ tasks:
       - Cargo.*
       - rust-toolchain.*
     cmds:
-      - cargo test {{.CLI_ARGS}}
+      - cargo nextest run {{.CLI_ARGS}}
 
   link:
     desc: "Link the library to a Godot project: task link -- path-to-godot-project"

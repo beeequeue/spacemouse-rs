@@ -1,7 +1,8 @@
-use core::fmt;
+use binrw::BinRead;
 use parking_lot::Mutex;
 use std::error::Error;
 use std::ffi::CString;
+use std::io::Cursor;
 use std::{
     collections::HashMap,
     fs,
@@ -20,39 +21,21 @@ use lazy_static::lazy_static;
 
 #[cfg(not(feature = "godot"))]
 use crate::vector3::Vector3;
+use crate::{Format, v0, v1};
 #[cfg(feature = "godot")]
 use godot::prelude::Vector3;
 use scopeguard::defer;
 
-fn to_i16(slice: &[u8]) -> i16 {
-    i16::from_le_bytes(slice.try_into().unwrap())
-}
-
 lazy_static! {
     pub static ref DEVICE_FORMATS: HashMap<(u16, u16), Format> = HashMap::from([
-        ((0x046D, 0xC626), Format::Original),   // 3Dconnexion Space Navigator 3D Mouse
-        ((0x256F, 0xC635), Format::Original),   // SpaceMouse Compact
-        ((0x256F, 0xC632), Format::Current),    // SpaceMouse Pro Wireless Receiver
-        ((0x046D, 0xC62B), Format::Original),   // 3Dconnexion Space Mouse Pro
-        ((0x256F, 0xC62E), Format::Current),    // SpaceMouse Wireless (cabled)
-        ((0x256F, 0xC652), Format::Current),    // Universal Receiver
-        ((0x046D, 0xC629), Format::Original),   // 3Dconnexion SpacePilot Pro 3D Mouse
+        ((0x046D, 0xC626), Format::V0),   // 3Dconnexion Space Navigator 3D Mouse
+        ((0x256F, 0xC635), Format::V0),   // SpaceMouse Compact
+        ((0x256F, 0xC632), Format::V1),   // SpaceMouse Pro Wireless Receiver
+        ((0x046D, 0xC62B), Format::V0),   // 3Dconnexion Space Mouse Pro
+        ((0x256F, 0xC62E), Format::V1),   // SpaceMouse Wireless (cabled)
+        ((0x256F, 0xC652), Format::V1),   // Universal Receiver
+        ((0x046D, 0xC629), Format::V0),   // 3Dconnexion SpacePilot Pro 3D Mouse
     ]);
-}
-
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum Format {
-    Original,
-    Current,
-}
-
-impl fmt::Display for Format {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Original => write!(f, "Original"),
-            Self::Current => write!(f, "Current"),
-        }
-    }
 }
 
 #[derive(Facet, Clone, Debug)]
@@ -181,9 +164,12 @@ impl SpaceMouseDevice {
     pub fn stop_polling(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.set_polling(false);
         if let Some(handle) = self.thread_handle.take() {
-            return handle
-                .join()
-                .unwrap_or_else(|_| Err(Box::from("Unknown error from polling thread.")));
+            return handle.join().unwrap_or_else(|err| {
+                Err(err
+                    .downcast_ref::<String>()
+                    .map_or_else(|| "Unknown thread panic".to_owned(), |s| s.to_owned())
+                    .into())
+            });
         };
 
         Ok(())
@@ -240,49 +226,48 @@ impl SpaceMouseDevice {
         battery: &Arc<Mutex<Option<u8>>>,
     ) {
         match format {
-            Format::Original => {
-                if buffer[0] == 1 {
-                    let mut translation = translation.lock();
-                    translation.x = to_i16(&buffer[1..=2]) as f32;
-                    translation.y = -to_i16(&buffer[5..=6]) as f32;
-                    translation.z = to_i16(&buffer[3..=4]) as f32;
-                } else if buffer[0] == 2 {
-                    let mut rotation = rotation.lock();
-                    rotation.x = to_i16(&buffer[1..=2]) as f32;
-                    rotation.y = -to_i16(&buffer[5..=6]) as f32;
-                    rotation.z = to_i16(&buffer[3..=4]) as f32;
+            Format::V0 => {
+                let frame = v0::Frame::read(&mut Cursor::new(buffer)).unwrap();
+
+                match frame.packet {
+                    v0::Packet::Translate(packet) => {
+                        let mut translation = translation.lock();
+                        translation.x = packet.x as f32;
+                        translation.y = -packet.y as f32;
+                        translation.z = packet.z as f32;
+                    }
+                    v0::Packet::Rotate(packet) => {
+                        let mut rotation = rotation.lock();
+                        rotation.x = packet.x as f32;
+                        rotation.y = -packet.y as f32;
+                        rotation.z = packet.z as f32;
+                    }
+                    _ => {}
                 }
             }
 
-            Format::Current => {
-                if buffer[0] == 1 {
-                    let mut translation = translation.lock();
-                    translation.x = to_i16(&buffer[1..=2]) as f32;
-                    translation.y = -to_i16(&buffer[5..=6]) as f32;
-                    translation.z = to_i16(&buffer[3..=4]) as f32;
-                    let mut rotation = rotation.lock();
-                    rotation.x = to_i16(&buffer[7..=8]) as f32;
-                    rotation.y = -to_i16(&buffer[1..=2]) as f32;
-                    rotation.z = to_i16(&buffer[9..=10]) as f32;
-                } else if buffer[0] == 23 {
-                    let mut battery = battery.lock();
-                    *battery = Some(to_i16(&buffer[1..=2]) as u8);
+            Format::V1 => {
+                let frame = v1::Frame::read(&mut Cursor::new(buffer)).unwrap();
+
+                match frame.packet {
+                    v1::Packet::Motion(packet) => {
+                        let mut translation = translation.lock();
+                        translation.x = packet.x as f32;
+                        translation.y = -packet.z as f32;
+                        translation.z = -packet.y as f32;
+
+                        let mut rotation = rotation.lock();
+                        rotation.x = packet.rx as f32;
+                        rotation.y = packet.rz as f32;
+                        rotation.z = -packet.ry as f32;
+                    }
+                    v1::Packet::Battery(level) => {
+                        let mut battery = battery.lock();
+                        *battery = Some(level);
+                    }
+                    _ => {}
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parsing_int16() {
-        let buffer: &[u8] = &[1, 0x00, 0x10, 0xff, 0x00, 0xff, 0xff];
-
-        assert_eq!(to_i16(&buffer[1..=2]), 4096);
-        assert_eq!(to_i16(&buffer[3..=4]), 255);
-        assert_eq!(to_i16(&buffer[5..=6]), -1);
     }
 }

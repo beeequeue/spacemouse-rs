@@ -3,7 +3,12 @@ name = "spacemouse"
 version = "0.0.0"
 edition = "2024"
 
+[features]
+# Replaces the Vector3 struct with the one from godot-rust
+godot = ["dep:godot"]
+
 [dependencies]
+binrw = "0.15.0"
 facet = "0.44.3"
 facet-postcard = "0.44.5"
 godot = { version = "^0.5.0", optional = true }
@@ -16,6 +21,5 @@ lazy_static = "1.5.0"
 parking_lot = "0.12.5"
 scopeguard = "1.2.0"
 
-[features]
-# Defines a feature named `webp` that does not enable any other features.
-godot = ["dep:godot"]
+[dev-dependencies]
+rstest = { version = "0.26.1", default-features = false }
