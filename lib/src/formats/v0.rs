@@ -31,6 +31,8 @@ pub enum Packet {
     Translate(XYZPacket),
     #[br(pre_assert(kind == PacketKind::Rotate))]
     Rotate(XYZPacket),
+    #[br()]
+    Unknown([u8; 13]),
 }
 
 #[binread]

@@ -33,6 +33,8 @@ pub enum Packet {
     Button(ButtonPacket),
     #[br(pre_assert(kind == PacketKind::Battery))]
     Battery(u8),
+    #[br()]
+    Unknown([u8; 13]),
 }
 
 #[binread]
