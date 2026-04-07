@@ -236,7 +236,7 @@ impl SpaceMouseDevice {
                         }
                         thread::sleep(Duration::from_millis(10)); // 100hz
                     }
-                } else if let Err(err) = open_result
+                } else if let Err(_) = open_result
                     && let Some(cache_path) = cache_path
                 {
                     DeviceIds::clear_cache(&cache_path);
