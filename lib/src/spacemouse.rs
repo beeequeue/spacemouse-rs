@@ -234,7 +234,7 @@ impl SpaceMouseDevice {
                             device.read(buffer)?;
                             Self::parse_data(&format, buffer, &translation, &rotation, &battery);
                         }
-                        thread::sleep(Duration::from_millis(7)); // 144hz
+                        thread::sleep(Duration::from_millis(10)); // 100hz
                     }
                 } else if let Err(err) = open_result
                     && let Some(cache_path) = cache_path
