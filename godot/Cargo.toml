@@ -1,6 +1,6 @@
 [package]
 name = "godot-spacemouse"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 
 [lib]
@@ -8,4 +8,4 @@ crate-type = ["cdylib"] # Compile this crate to a dynamic C library.
 
 [dependencies]
 godot = { version = "^0.5.0" }
-spacemouse = { path = "../lib", features = ["godot"] }
+spacemouse = { path = "../lib", features = ["godot"] , version = "0.1.0" }
