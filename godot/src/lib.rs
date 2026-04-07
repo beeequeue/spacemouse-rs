@@ -1,7 +1,5 @@
 mod settings;
 
-use std::path::PathBuf;
-
 use godot::{
     classes::{
         Camera3D, EditorInterface, EditorPlugin, IEditorPlugin, MeshInstance3D,
@@ -43,12 +41,6 @@ struct SpaceMousePlugin {
 
 #[godot_api]
 impl SpaceMousePlugin {
-    fn cache_path() -> PathBuf {
-        std::env::current_dir()
-            .unwrap()
-            .join(".godot/spacemouse_cache.bin")
-    }
-
     #[func]
     fn on_focus_entered(&mut self) {
         self.focused = true;
@@ -156,7 +148,7 @@ impl IEditorPlugin for SpaceMousePlugin {
             .unwrap()
             .get_camera_3d();
 
-        if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_cache(Self::cache_path())
+        if let Ok(mut spacemouse) = SpaceMouseDevice::find_with_default_cache()
             && !spacemouse.is_polling()
         {
             spacemouse.start_polling();

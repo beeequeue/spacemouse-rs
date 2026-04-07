@@ -31,11 +31,24 @@ lazy_static! {
         ((0x046D, 0xC626), Format::V0),   // 3Dconnexion Space Navigator 3D Mouse
         ((0x256F, 0xC635), Format::V0),   // SpaceMouse Compact
         ((0x256F, 0xC632), Format::V1),   // SpaceMouse Pro Wireless Receiver
-        ((0x046D, 0xC62B), Format::V0),   // 3Dconnexion Space Mouse Pro
+        ((0x046D, 0xC62B), Format::V0),   // 3DConnexion Space Mouse Pro
         ((0x256F, 0xC62E), Format::V1),   // SpaceMouse Wireless (cabled)
         ((0x256F, 0xC652), Format::V1),   // Universal Receiver
-        ((0x046D, 0xC629), Format::V0),   // 3Dconnexion SpacePilot Pro 3D Mouse
+        ((0x046D, 0xC629), Format::V0),   // 3DConnexion SpacePilot Pro 3D Mouse
     ]);
+}
+
+#[cfg(not(feature = "godot"))]
+lazy_static! {
+    static ref DEFAULT_CACHE_PATH: PathBuf = std::env::home_dir()
+        .unwrap()
+        .join(".local/state/spacemouse-rs/device");
+}
+#[cfg(feature = "godot")]
+lazy_static! {
+    static ref DEFAULT_CACHE_PATH: PathBuf = std::env::current_dir()
+        .unwrap()
+        .join(".godot/spacemouse_device");
 }
 
 #[derive(Facet, Clone, Debug)]
@@ -55,7 +68,13 @@ impl DeviceIds {
 
     fn save_cache(&self, path: &PathBuf) -> Result<(), Box<dyn Error + Send + Sync>> {
         let data = facet_postcard::to_vec(self)?;
+        fs::create_dir_all(path.parent().unwrap())?;
         Ok(fs::write(path, data)?)
+    }
+
+    fn clear_cache(path: &PathBuf) {
+        // ignore errors, we don't care if the cache file is gone already
+        let _ = fs::remove_file(path);
     }
 }
 
@@ -71,6 +90,8 @@ pub enum ThreadStatus {
 }
 
 pub struct SpaceMouseDevice {
+    cache_path: Option<PathBuf>,
+
     #[allow(private_interfaces)]
     pub info: DeviceIds,
     pub format: Format,
@@ -85,10 +106,15 @@ pub struct SpaceMouseDevice {
 }
 
 impl SpaceMouseDevice {
+    pub fn find_with_default_cache() -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::find_with_cache(DEFAULT_CACHE_PATH.clone())
+    }
+
     // no idea if this actually speeds anything up in godot, but worth a try since the device lookup is "documented to take several seconds"
     pub fn find_with_cache(path: PathBuf) -> Result<Self, Box<dyn Error + Send + Sync>> {
         if let Ok(ids) = DeviceIds::load_cache(&path) {
             return Ok(Self {
+                cache_path: Some(path),
                 format: *DEVICE_FORMATS.get(&(ids.vendor, ids.product)).unwrap(),
                 info: ids,
                 translation: Arc::new(Mutex::new(Vector3::ZERO)),
@@ -130,9 +156,12 @@ impl SpaceMouseDevice {
         });
 
         found.map_or(
-            Err(HidError::HidApiErrorEmpty),
+            Err(HidError::HidApiError {
+                message: "Did not find a connected SpaceMouse device".to_string(),
+            }),
             |(device, serial_number, format)| {
                 Ok(Self {
+                    cache_path: None,
                     info: DeviceIds {
                         vendor: device.0,
                         product: device.1,
@@ -185,32 +214,32 @@ impl SpaceMouseDevice {
         let rotation = Arc::clone(&self.rotation);
         let battery = Arc::clone(&self.battery);
         let is_polling = Arc::clone(&self.is_polling);
+        let cache_path = self.cache_path.clone();
 
         self.thread_handle = Some(thread::spawn(
             move || -> Result<(), Box<dyn Error + Send + Sync>> {
-                defer! {
-                    is_polling.store(false, Ordering::Relaxed);
-                }
+                defer! { is_polling.store(false, Ordering::Relaxed) }
 
                 HidApi::disable_device_discovery();
                 let hidapi = HidApi::new()?;
                 let path = CString::new(hid_path.as_str())?;
-                let device = hidapi.open_path(&path)?;
-                device.set_blocking_mode(false)?;
 
-                let buffer: &mut [u8; 13] = &mut [0; 13];
-                while is_polling.load(Ordering::Relaxed) {
-                    for _ in 0..4 {
-                        device.read(buffer)?;
-                        SpaceMouseDevice::parse_data(
-                            &format,
-                            buffer,
-                            &translation,
-                            &rotation,
-                            &battery,
-                        );
+                let open_result = hidapi.open_path(&path);
+                if let Ok(device) = open_result {
+                    device.set_blocking_mode(false)?;
+
+                    let buffer: &mut [u8; 13] = &mut [0; 13];
+                    while is_polling.load(Ordering::Relaxed) {
+                        for _ in 0..4 {
+                            device.read(buffer)?;
+                            Self::parse_data(&format, buffer, &translation, &rotation, &battery);
+                        }
+                        thread::sleep(Duration::from_millis(7)); // 144hz
                     }
-                    thread::sleep(Duration::from_millis(7)); // 144hz
+                } else if let Err(err) = open_result
+                    && let Some(cache_path) = cache_path
+                {
+                    DeviceIds::clear_cache(&cache_path);
                 }
 
                 Ok(())
